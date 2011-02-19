@@ -1,0 +1,7 @@
+SESSIONS.ser
+.project
+.classpath
+.settings
+target
+.scala_dependencies
+src_managed
