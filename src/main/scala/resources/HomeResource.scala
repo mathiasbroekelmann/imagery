@@ -15,26 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.mbr.imagery
+package org.mbr.imagery.resources
 
-import org.fusesource.scalate.test.{WebDriverMixin, WebServerMixin}
-import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
-import org.scalatest.FunSuite
+import javax.ws.rs._
+
+import com.sun.jersey.api.view.ImplicitProduces
+import java.net.URI
+import java.io.File
 
 /**
- * Unit test for My Ap
+ * The root resource bean
  */
-@RunWith(classOf[JUnitRunner])
-class AppTest extends FunSuite with WebServerMixin with WebDriverMixin {
+@Path("/")
+@Produces(Array("text/html;qs=5"))
+class HomeResource {
 
-  test("home page") {
-    webDriver.get(rootUrl)
-    pageContains("Scalate")
+  def location = new File("/media/fotos/2010")
+
+  def dashboard = new Dashboard {
+    val location = HomeResource.this.location
   }
-
-  //
-  // TODO here is a sample test case for a page
-  //
-  // testPageContains("foo.scaml", "this is some content I expect")
 }
