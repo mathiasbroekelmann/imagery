@@ -21,8 +21,10 @@ import de.element34.sbteclipsify._
 
 class Project(info: ProjectInfo) 
   extends DefaultWebProject(info) 
-  with PrecompilerWebProject 
-  with Eclipsify {
+//  with PrecompilerWebProject 
+  with Eclipsify 
+  with IdeaProject {
+
   lazy val mavenLocal = "Local Maven Repository" at "file://"+Path.userHome+"/.m2/repository"
 
   lazy val fusesource_snapshot_repo = "FuseSource Snapshots" at
