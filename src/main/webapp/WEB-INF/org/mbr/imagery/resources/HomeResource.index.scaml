@@ -8,6 +8,6 @@
   Please use the Scalate console on the right to create new resources and views
 
 %ul
-  - for(img <- it.dashboard.pictures.take(10))
+  - for(img <- it.pictures.take(10))
     %li
-      %img{:src => {img.src}}
+      %img{:src => {img.withWidth(100).src}}

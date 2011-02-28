@@ -14,33 +14,16 @@ import javax.servlet.ServletContext
  * Time: 16:26
  */
 
-case class HtmlImage(loc: URI, relativeTo: URI) extends Image {
+case class UriImage(loc: URI) extends Image {
 
   def blob = new UriBlob {
     override lazy val uri = loc
   }
-
-  def src = URI.create(loc.toString.stripPrefix(relativeTo.toString))
 }
 
 trait Dashboard {
 
   def location: File
-
-  /**
-   * get the latest images sorted by their last modified date.
-   */
-  lazy val latest: Iterable[HtmlImage] = Nil
-
-  /**
-   * get all pictures below location
-   */
-  lazy val pictures: Iterable[HtmlImage] = {
-    location match {
-      case dir if dir.isDirectory => images(dir)
-      case file => for (img <- image(file)) yield img
-    }
-  }
 
   /**
    * ignore hidden directories starting with .
@@ -54,35 +37,47 @@ trait Dashboard {
   }
 
   /**
-   * create an image instance for the given file if it is a valid image
+   * get all pictures below location
    */
-  private def image(file: File): Option[HtmlImage] = {
-    val mimeType = Option(file.toURI.toURL.openConnection.getContentType).map(new MimeType(_))
-    mimeType match {
-      case Some(m) if "image" == m.getPrimaryType => Some(HtmlImage(file.toURI, location.toURI))
-      case _ => None
+  def pictures[A](create: URI => A = (new UriImage(_))): Iterable[A] = {
+    
+    /**
+     * create an image instance for the given file if it is a valid image
+     */
+    def image(file: File): Option[A] = {
+      val mimeType = Option(file.toURI.toURL.openConnection.getContentType).map(new MimeType(_))
+      mimeType match {
+        case Some(m) if "image" == m.getPrimaryType => Some(create(file.toURI))
+        case _ => None
+      }
+    }
+
+    def images(directory: File): Iterable[A] = {
+
+      def file(name: String): File = new File(directory, name)
+
+      def imageFiles: Iterable[File] = Option(directory.list(new FilenameFilter() {
+        def accept(file: File) = file.isFile && file.canRead
+
+        def accept(dir: File, name: String) = accept(new File(dir, name))
+      })).map(_.toStream).getOrElse(Stream.empty).map(file)
+
+      def nestedDirectories: Iterable[File] = Option(directory.list(new FilenameFilter() {
+        def accept(file: File) = file.isDirectory && file.canRead && acceptDirectory(file)
+
+        def accept(dir: File, name: String) = accept(new File(dir, name))
+      })).map(_.toStream).getOrElse(Stream.empty).map(file)
+
+      val pictures = for (file <- imageFiles; image <- image(file)) yield image
+      val nested = for (dir <- nestedDirectories) yield images(dir)
+
+      pictures ++ nested.flatten
+    }
+
+    location match {
+      case dir if dir.isDirectory => images(dir)
+      case file => for (img <- image(file)) yield img
     }
   }
 
-  private def images(directory: File): Iterable[HtmlImage] = {
-
-    def file(name: String): File = new File(directory, name)
-
-    def imageFiles: Iterable[File] = Option(directory.list(new FilenameFilter() {
-      def accept(file: File) = file.isFile && file.canRead
-
-      def accept(dir: File, name: String) = accept(new File(dir, name))
-    })).map(_.toStream).getOrElse(Stream.empty).map(file)
-
-    def nestedDirectories: Iterable[File] = Option(directory.list(new FilenameFilter() {
-      def accept(file: File) = file.isDirectory && file.canRead && acceptDirectory(file)
-
-      def accept(dir: File, name: String) = accept(new File(dir, name))
-    })).map(_.toStream).getOrElse(Stream.empty).map(file)
-
-    val pictures = for (file <- imageFiles; image <- image(file)) yield image
-    val nested = for (dir <- nestedDirectories) yield images(dir)
-
-    pictures ++ nested.flatten
-  }
 }
