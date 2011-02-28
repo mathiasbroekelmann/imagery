@@ -34,7 +34,7 @@ class Project(info: ProjectInfo)
   
   lazy val commonsIo        = "commons-io" % "commons-io" % "1.4"
 
-  lazy val scalate_guice    = "org.fusesource.scalate" % "scalate-guice"     % "1.4.0" 
+  lazy val scalate_guice    = "org.fusesource.scalate" % "scalate-guice"     % "1.4.0" withSources()
   lazy val servlet          = "javax.servlet"          % "servlet-api"       % "2.5" 
   lazy val logback          = "ch.qos.logback"         % "logback-classic"   % "0.9.26"
 
