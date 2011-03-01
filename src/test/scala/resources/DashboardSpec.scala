@@ -17,9 +17,11 @@ class DashboardSpec extends Specification {
     val dashboard = new Dashboard {
       lazy val location = base
     }
-    val pics = dashboard.pictures
-    for(pic <- pics.take(20)) {
-      println(pic.src)
+    /**
+    val pics = dashboard.pictures(UriImage(_))
+    for(pic <- pics.take(10)) {
+      println(pic.loc)
     }
+     */
   }
 }

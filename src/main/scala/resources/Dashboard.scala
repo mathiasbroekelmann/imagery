@@ -39,7 +39,7 @@ trait Dashboard {
   /**
    * get all pictures below location
    */
-  def pictures[A](create: URI => A = (new UriImage(_))): Iterable[A] = {
+  def pictures[A](create: URI => A): Iterable[A] = {
     
     /**
      * create an image instance for the given file if it is a valid image

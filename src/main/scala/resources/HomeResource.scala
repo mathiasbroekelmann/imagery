@@ -76,24 +76,28 @@ class HomeResource {
     dashboard.pictures(HtmlImage(_))
   }
 
+  def picture(imageFile: File,
+              width: Option[Int],
+              height: Option[Int]): Response = {
+    if (imageFile.exists) {
+      Response.ok(new StreamingOutput {
+        def write(out: OutputStream) = {
+          val image = new FileBlob {
+            def file = imageFile
+          }.read(ImageResizer.resize(_, width, height))
+        }
+      }).build
+    } else {
+      Response.status(404).build
+    }
+  }
   @GET
   @Path("pic/{src:.*}")
   @Produces(Array("image/*"))
   def picture(@PathParam("src") src: String,
               @QueryParam("w") width: Int = 0,
               @QueryParam("h") height: Int = 0): Response = {
-    val imageFile = new File(base, src)
-    if (imageFile.exists) {
-      Response.ok(new StreamingOutput {
-        def write(out: OutputStream) = {
-          val image = new FileBlob {
-            def file = imageFile
-          }.read(ImageResizer.resize(_, if(width > 0) Some(width) else None, if(height > 0) Some(height) else None))
-        }
-      }).build
-    } else {
-      Response.status(404).build
-    }
+    picture(new File(base, src), if(width > 0) Some(width) else None, if(height > 0) Some(height) else None)
   }
 
 }
