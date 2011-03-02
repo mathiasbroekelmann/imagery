@@ -12,10 +12,30 @@ import org.apache.commons.io.IOUtils
 
 object Magick {
 
+  def convert(attributes: Attribute*): Magick =
+    convert(Option(attributes).map(_.toList).getOrElse(Nil))
+
+  def convert(attributes: Iterable[Attribute]): Magick =
+    Magick(attributes)
+
+  def read(file: File, moreFiles: File*) = new Magick().read(file, moreFiles: _*)
+
+  val size = AttributeCommand[Size](s => "-size" :: s.width + "x" + s.height :: Nil)
+
+  val quality = AttributeCommand[Int](q => "-quality" :: q.toString :: Nil)
+
   implicit def toSize(width: Int) = new {
     def x(height: Int) = new Size(width, height)
   }
 }
+
+case class AttributeCommand[A](c: A => Iterable[String]) {
+  def ->(value: A) = new Attribute {
+    def commands = c(value)
+  }
+}
+
+trait Attribute extends HasCommands
 
 trait Disposable {
   /**
@@ -26,7 +46,7 @@ trait Disposable {
   }
 }
 
-case class Magick(inputAttributes: ImageAttributes = ImageAttributes()) extends Disposable {
+case class Magick(attributes: Iterable[Attribute] = Nil) extends Disposable {
 
   private[this] val pb = new ProcessBuilder("convert")
 
@@ -44,17 +64,17 @@ case class Magick(inputAttributes: ImageAttributes = ImageAttributes()) extends 
     assert(ret == 0, "imagemagick is not installed")
   }
 
-  private[this] def execute(prepared: PreparedMagick, file: File, outputAttributes: ImageAttributes): MagickResult = {
+  private[this] def execute(prepared: PreparedMagick, file: File, outputAttributes: Iterable[Attribute]): MagickResult = {
 
     def files(files: Iterable[File]): Iterable[String] = files.map(_.getAbsolutePath)
 
-    val commands = ("convert" +:
-      inputAttributes.commands ::
-      files(prepared.files) ::
-      (prepared.operations.map(_.commands).flatten) ::
-      outputAttributes.commands ::
-      files(List(file)) ::
-      Nil).flatten
+    val commands = "convert" +:
+      (attributes.map(_.commands.toList).flatten ::
+        files(prepared.files) ::
+        (prepared.operations.map(_.commands.toList).flatten) ::
+        outputAttributes.map(_.commands.toList).flatten ::
+        files(List(file)) ::
+        Nil).flatten.toList
 
     println(commands.mkString(" "))
     val process = new ProcessBuilder(commands).start
@@ -77,10 +97,20 @@ case class Magick(inputAttributes: ImageAttributes = ImageAttributes()) extends 
  */
 trait MagickResult
 
+trait MagickOperations {
+
+  /**
+   * add one or more operations to apply and create a new instance
+   */
+  def apply(operation: Operation, moreOperations: Operation*): PreparedMagick
+}
+
+
+
 /**
  * immutable instance to process image file operations
  */
-trait PreparedMagick extends Disposable {
+trait PreparedMagick extends Disposable with ImageManipulation {
 
   /**
    * the files to read from
@@ -93,26 +123,11 @@ trait PreparedMagick extends Disposable {
   def operations: Iterable[Operation]
 
   /**
-   * add an operation to apply and create a new instance
-   */
-  def apply(operation: Operation, moreOperations: Operation*): PreparedMagick
-
-  /**
-   * crop out an area from image
-   */
-  def crop(area: Area) = apply(Crop(area))
-
-  /**
-   * create thumbnail
-   */
-  def thumbnail(size: Size) = apply(Thumbnail(size))
-
-  /**
    * write the result to the given file
    */
-  def write(file: File, attributes: ImageAttributes = ImageAttributes()) = executor(this, file, attributes)
+  def write(file: File, attributes: Iterable[Attribute] = Nil) = executor(this, file, attributes)
 
-  protected[this] def executor: ((PreparedMagick, File, ImageAttributes) => MagickResult)
+  protected[this] def executor: ((PreparedMagick, File, Iterable[Attribute]) => MagickResult)
 }
 
 /**
@@ -120,22 +135,8 @@ trait PreparedMagick extends Disposable {
  */
 trait Operation extends HasCommands
 
-/**
- * changes the size of an image to the given dimensions and removes any associated profiles.
- */
-case class Thumbnail(size: Size) extends Operation {
-  def commands = "-thumbnail" :: size.width + "x" + size.height :: Nil
-}
-
-/**
- * defines a crop operation
- */
-case class Crop(area: Area) extends Operation {
-  def commands = "-crop" :: area.size.width + "x" + area.size.height + "+" + area.x + "+" + area.y :: Nil
-}
-
 case class SomePreparedMagick(files: Iterable[File],
-                              executor: ((PreparedMagick, File, ImageAttributes) => MagickResult),
+                              executor: ((PreparedMagick, File, Iterable[Attribute]) => MagickResult),
                               operations: List[Operation] = Nil)
   extends PreparedMagick {
 
@@ -154,9 +155,16 @@ case class Area(size: Size, x: Int = 0, y: Int = 0)
  * defines width and height
  */
 case class Size(width: Int, height: Int) {
-  def +(x: Int) = new {
+
+  class PartialOffsetArea(x: Int) {
     def +(y: Int) = Area(Size.this, x, y)
+
+    def -(y: Int) = Area(Size.this, x, -y)
   }
+
+  def +(x: Int) = new PartialOffsetArea(x)
+
+  def -(x: Int) = new PartialOffsetArea(-x)
 }
 
 /**
@@ -170,12 +178,12 @@ case class Scale(size: Size)
 case class ImageAttributes(size: Option[Size] = None,
                            quality: Option[Int] = None) extends HasCommands {
   def commands = {
-    val cmds = (for (s <- size) yield (List("-size", s.width + "x" + s.height))) ::
-      (for (q <- quality) yield (List("-quality", q + ""))) :: Nil
+    val cmds = (for (s <- size) yield ("-size" :: s.width + "x" + s.height :: Nil)) ::
+      (for (q <- quality) yield ("-quality" :: q + "" :: Nil)) :: Nil
     cmds.flatten.flatten
   }
 }
 
 trait HasCommands {
-  def commands: List[String]
+  def commands: Iterable[String]
 }
