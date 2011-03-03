@@ -9,8 +9,7 @@ import org.apache.commons.io.IOUtils
  * Date: 01.03.11 20:23
  * Time: 20:23
  */
-
-object Magick {
+object Magick extends Parameters with UnsharpDefinition {
 
   def convert(attributes: Attribute*): Magick =
     convert(Option(attributes).map(_.toList).getOrElse(Nil))
@@ -23,26 +22,10 @@ object Magick {
   val size = AttributeCommand[Size](s => "-size" :: s.width + "x" + s.height :: Nil)
 
   val quality = AttributeCommand[Int](q => "-quality" :: q.toString :: Nil)
-
-  implicit def toSize(width: Int) = new {
-    def x(height: Int) = new Size(width, height)
-  }
 }
-
 case class AttributeCommand[A](c: A => Iterable[String]) {
   def ->(value: A) = new Attribute {
     def commands = c(value)
-  }
-}
-
-trait Attribute extends HasCommands
-
-trait Disposable {
-  /**
-   * clean up resources used by imagemagick
-   */
-  def dispose = {
-    // TODO: cleanup used magick resources
   }
 }
 
@@ -91,26 +74,18 @@ case class Magick(attributes: Iterable[Attribute] = Nil) extends Disposable {
   }
 }
 
-
-/**
- * contains the result of the imagemagick operation
- */
-trait MagickResult
-
 trait MagickOperations {
 
   /**
    * add one or more operations to apply and create a new instance
    */
-  def apply(operation: Operation, moreOperations: Operation*): PreparedMagick
+  def apply(operation: Operation, moreOperation: Operation*): PreparedMagick
 }
-
-
 
 /**
  * immutable instance to process image file operations
  */
-trait PreparedMagick extends Disposable with ImageManipulation {
+trait PreparedMagick extends ImageManipulation {
 
   /**
    * the files to read from
@@ -130,6 +105,17 @@ trait PreparedMagick extends Disposable with ImageManipulation {
   protected[this] def executor: ((PreparedMagick, File, Iterable[Attribute]) => MagickResult)
 }
 
+trait Attribute extends HasCommands
+
+trait Disposable {
+  /**
+   * clean up resources used by imagemagick
+   */
+  def dispose = {
+    // TODO: cleanup used magick resources
+  }
+}
+
 /**
  * some operation which can be applyed to an image
  */
@@ -137,41 +123,14 @@ trait Operation extends HasCommands
 
 case class SomePreparedMagick(files: Iterable[File],
                               executor: ((PreparedMagick, File, Iterable[Attribute]) => MagickResult),
-                              operations: List[Operation] = Nil)
+                              operations: Iterable[Operation] = Nil)
   extends PreparedMagick {
 
-  def apply(operation: Operation, moreOperations: Operation*) = {
-    val newOperations = (operations :+ operation) ::: Option(moreOperations).map(_.toList).getOrElse(Nil)
-    SomePreparedMagick(files, executor, newOperations)
+  def apply(operation: Operation, moreOperations: Operation*): PreparedMagick = {
+    val v = operations ++ List(operation) ++ Option(moreOperations).map(_.toList).getOrElse(Nil)
+    SomePreparedMagick(files, executor, v)
   }
 }
-
-/**
- * define an area
- */
-case class Area(size: Size, x: Int = 0, y: Int = 0)
-
-/**
- * defines width and height
- */
-case class Size(width: Int, height: Int) {
-
-  class PartialOffsetArea(x: Int) {
-    def +(y: Int) = Area(Size.this, x, y)
-
-    def -(y: Int) = Area(Size.this, x, -y)
-  }
-
-  def +(x: Int) = new PartialOffsetArea(x)
-
-  def -(x: Int) = new PartialOffsetArea(-x)
-}
-
-/**
- * scale image to desired size
- */
-case class Scale(size: Size)
-
 /**
  * define image attributes
  */
@@ -187,3 +146,8 @@ case class ImageAttributes(size: Option[Size] = None,
 trait HasCommands {
   def commands: Iterable[String]
 }
+
+/**
+ * contains the result of the imagemagick operation
+ */
+trait MagickResult

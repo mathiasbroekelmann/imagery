@@ -13,30 +13,23 @@ object MagickSpec extends Specification {
 
   "magick" should {
     "define implicit int x int to size translation" in {
-      val size = 100 x 200
+      val size = width(100).height(200)
       size.width must_== 100
       size.height must_== 200
     }
 
     "resolve area definition with positive offsets" in {
-      val area = (100 x 200) + 150 + 110
-      area.size.width must_== 100
-      area.size.height must_== 200
+      val area = width(100) height(200) x(150) y(110)
+      area.width must_== 100
+      area.height must_== 200
       area.x must_== 150
       area.y must_== 110
     }
 
     "resolve area definition with mixed positive/negative offsets" in {
-      val size = 100 x 200
-      (size - 150 - 110).x must_== -150
-      (size + 150 - 110).x must_== 150
-      (size + -150 - 110).x must_== -150
-      (size - -150 - 110).x must_== 150
-
-      (size + 150 - 110).y must_== -110
-      (size + 150 + 110).y must_== 110
-      (size + 150 + -110).y must_== -110
-      (size + 150 - -110).y must_== 110
+      val size = width(100) height(200)
+      size.x(150).y(110).x must_== 150
+      size.x(-150).y(110).x must_== -150
     }
 
     "basic image attributes definition using case class" in {
@@ -52,19 +45,24 @@ object MagickSpec extends Specification {
     val out = new File("target/fruehling.jpg")
 
     "thumbnail image operation" in {
-      read(in).thumbnail(200 x 150).write(out)
+      read(in).thumbnail(width(100) height(200)).write(out)
       out mustVerify(_.exists)
     }
 
     "size attribute definition" in {
-      val s = Magick.size -> (100 x 200)
+      val s = Magick.size -> (width(100) height(200))
       val (param :: arg :: Nil) = s.commands.toList
       param must_== "-size"
       arg must_== "100x200"
     }
 
     "size with thumbnail operation" in {
-      convert(Magick.size -> (500 x 500)).read(in).thumbnail(50 x 50).write(out)
+      convert(Magick.size -> (width(500) height(500))).read(in).thumbnail(width(50).height(50)).write(out)
+    }
+
+    "unsharp operation" in {
+      val v = radius(0).x(.5) +(1) +(.05)
+      v.commands.head must_== "0x0.5+1.0+0.05"
     }
   }
 }
