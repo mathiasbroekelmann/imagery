@@ -9,7 +9,7 @@ import org.apache.commons.io.IOUtils
  * Date: 01.03.11 20:23
  * Time: 20:23
  */
-object Magick extends Parameters with UnsharpDefinition {
+object Magick extends ColorSpecification {
 
   def convert(attributes: Attribute*): Magick =
     convert(Option(attributes).map(_.toList).getOrElse(Nil))
@@ -19,10 +19,15 @@ object Magick extends Parameters with UnsharpDefinition {
 
   def read(file: File, moreFiles: File*) = new Magick().read(file, moreFiles: _*)
 
-  val size = AttributeCommand[Size](s => "-size" :: s.width + "x" + s.height :: Nil)
+  def size(width: Int, height: Int) = new Attribute {
+    def commands = "-size" :: width + "x" + height :: Nil
+  }
 
-  val quality = AttributeCommand[Int](q => "-quality" :: q.toString :: Nil)
+  def quality(value: Byte) = new Attribute {
+    def commands = "-quality" :: value.toString :: Nil
+  }
 }
+
 case class AttributeCommand[A](c: A => Iterable[String]) {
   def ->(value: A) = new Attribute {
     def commands = c(value)
@@ -51,13 +56,11 @@ case class Magick(attributes: Iterable[Attribute] = Nil) extends Disposable {
 
     def files(files: Iterable[File]): Iterable[String] = files.map(_.getAbsolutePath)
 
-    val commands = "convert" +:
-      (attributes.map(_.commands.toList).flatten ::
-        files(prepared.files) ::
-        (prepared.operations.map(_.commands.toList).flatten) ::
-        outputAttributes.map(_.commands.toList).flatten ::
-        files(List(file)) ::
-        Nil).flatten.toList
+    val commands = ("convert" +:
+      attributes.map(_.commands.toList).flatten.toList ::
+      prepared.commands ::
+      outputAttributes.map(_.commands.toList).flatten ::
+      List(file.getAbsolutePath) :: Nil).flatten
 
     println(commands.mkString(" "))
     val process = new ProcessBuilder(commands).start
@@ -85,7 +88,7 @@ trait MagickOperations {
 /**
  * immutable instance to process image file operations
  */
-trait PreparedMagick extends ImageManipulation {
+trait PreparedMagick extends ImageManipulation with ImageGeometryDefinition {
 
   /**
    * the files to read from
@@ -96,6 +99,13 @@ trait PreparedMagick extends ImageManipulation {
    * operations to apply
    */
   def operations: Iterable[Operation]
+
+  def commands: Iterable[String] = {
+    (files.map(_.getAbsolutePath) ::
+      (operations.map(_.commands.toList).flatten) ::
+      Nil).flatten
+  }
+
 
   /**
    * write the result to the given file
@@ -131,6 +141,7 @@ case class SomePreparedMagick(files: Iterable[File],
     SomePreparedMagick(files, executor, v)
   }
 }
+
 /**
  * define image attributes
  */

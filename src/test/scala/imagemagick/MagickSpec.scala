@@ -12,25 +12,6 @@ import org.imagemagick.Magick._
 object MagickSpec extends Specification {
 
   "magick" should {
-    "define implicit int x int to size translation" in {
-      val size = width(100).height(200)
-      size.width must_== 100
-      size.height must_== 200
-    }
-
-    "resolve area definition with positive offsets" in {
-      val area = width(100) height(200) x(150) y(110)
-      area.width must_== 100
-      area.height must_== 200
-      area.x must_== 150
-      area.y must_== 110
-    }
-
-    "resolve area definition with mixed positive/negative offsets" in {
-      val size = width(100) height(200)
-      size.x(150).y(110).x must_== 150
-      size.x(-150).y(110).x must_== -150
-    }
 
     "basic image attributes definition using case class" in {
       val attrs = ImageAttributes()
@@ -45,24 +26,122 @@ object MagickSpec extends Specification {
     val out = new File("target/fruehling.jpg")
 
     "thumbnail image operation" in {
-      read(in).thumbnail(width(100) height(200)).write(out)
-      out mustVerify(_.exists)
-    }
-
-    "size attribute definition" in {
-      val s = Magick.size -> (width(100) height(200))
-      val (param :: arg :: Nil) = s.commands.toList
-      param must_== "-size"
-      arg must_== "100x200"
+      read(in).thumbnail(Geometry(100, 200)).write(out)
+      out mustVerify (_.exists)
     }
 
     "size with thumbnail operation" in {
-      convert(Magick.size -> (width(500) height(500))).read(in).thumbnail(width(50).height(50)).write(out)
+      convert(
+        Magick.size(width = 500, height = 500),
+        quality(95)
+      ).read(in).thumbnail(Geometry(width = 50, height = 50))
     }
 
-    "unsharp operation" in {
-      val v = radius(0).x(.5) +(1) +(.05)
-      v.commands.head must_== "0x0.5+1.0+0.05"
+    "background operation" in {
+      val (file :: command :: param :: Nil) = read(in).background(transparent).commands.toList
+      command must_== "-background"
+      param must_== "#00000000"
+    }
+
+    "gravity" in {
+      val (file :: command :: param :: Nil) = read(in).gravity(Gravity.North).commands.toList
+      command must_== "-gravity"
+      param must_== "North"
+    }
+
+    "thumbnail creation by using pad out the image" in {
+      read(in).thumbnail(Geometry(100, 100).>)
+        .background(white)
+        .gravity(Gravity.Center)
+        .extent(Geometry(150, 100))
+        .write(new File("target/fruehling_pad_out_tn.jpg"))
+      out mustVerify (_.exists)
+    }
+
+    "image geometry specification" in {
+
+      import Geometry._
+
+      "width and height" in {
+        val heightOnly = Geometry(height = Some(100))
+        val widthOnly = Geometry(width = Some(10))
+        val widthHeight = Geometry(width = Some(10), height = Some(20))
+
+        heightOnly.spec must_== "x100"
+        widthOnly.spec must_== "10"
+        widthHeight.spec must_== "10x20"
+
+        "with offset" in {
+          heightOnly(100, 200).spec must_== "x100+100+200"
+          heightOnly(100, 200).escape must_== false
+          heightOnly(-100, -200).spec must_== "x100-100-200"
+          heightOnly(x = 100, y = 200).spec must_== "x100+100+200"
+          heightOnly.offset(100, 200).spec must_== "x100+100+200"
+
+          widthOnly(10, 22).spec must_== "10+10+22"
+          widthOnly.offset(10, -22).spec must_== "10+10-22"
+
+          widthHeight(10, 22).spec must_== "10x20+10+22"
+          widthHeight.offset(10, 22).spec must_== "10x20+10+22"
+        }
+      }
+
+      "scale" in {
+        val scale = Geometry(scale = 50)
+        val scaleXY = Geometry(scalex = 50, scaley = 70)
+
+        scale.spec must_== "50.0%"
+        scale.escape must_== true
+        scaleXY.spec must_== "50.0x70.0%"
+        scaleXY.escape must_== true
+
+        "with offset" in {
+          scale(11, 22).spec must_== "50.0%+11+22"
+          scaleXY(21, 32).spec must_== "50.0x70.0%+21+32"
+
+        }
+      }
+
+      "conditional width and height" in {
+        val wh = Geometry(width = 111, height = 222)
+
+        wh.spec must_== "111x222"
+        wh.escape must_== false
+        wh.min.spec must_== "111x222^"
+        wh.min.escape must_== true
+        wh.^.spec must_== "111x222^"
+
+        wh.force.spec must_== "111x222!"
+        wh.force.escape must_== true
+        wh.!.spec must_== "111x222!"
+
+        wh.ifGreater.spec must_== "111x222>"
+        wh.ifGreater.escape must_== true
+        wh.>.spec must_== "111x222>"
+
+        wh.ifBothGreater.spec must_== "111x222<"
+        wh.ifBothGreater.escape must_== true
+        wh.<.spec must_== "111x222<"
+
+        "with offset" in {
+          wh(11, 22).spec must_== "111x222+11+22"
+          wh.^(21, 32).spec must_== "111x222^+21+32"
+          wh.!(21, 32).spec must_== "111x222!+21+32"
+          wh.>(21, -32).spec must_== "111x222>+21-32"
+          wh.<(-21, 32).spec must_== "111x222<-21+32"
+        }
+      }
+
+      "area" in {
+        val area = Geometry(10000).area
+
+        area.spec must_== "10000@"
+        Geometry(100).\@.spec must_== "100@"
+
+        "with offset" in {
+          area(11, 22).spec must_== "10000@+11+22"
+        }
+      }
     }
   }
 }

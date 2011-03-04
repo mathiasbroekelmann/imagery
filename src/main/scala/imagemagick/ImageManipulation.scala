@@ -10,12 +10,17 @@ import org.imagemagick._
  * Date: 01.03.11 20:23
  * Time: 20:23
  */
-trait ImageManipulation extends MagickOperations {
+trait ImageManipulation extends MagickOperations with ColorSpecification {
+
+  /**
+   * define additional parameters. see -define option
+   */
+  def define(settings: Map[String, String]) = apply(Define(settings))
 
   /**
    * crop out an area from image
    */
-  def crop(area: Area) = apply(Crop(area))
+  def crop(geometry: ImageGeometry) = apply(ParameterOperation("-crop", geometry))
 
   /**
    * strip all profiles from image
@@ -23,18 +28,53 @@ trait ImageManipulation extends MagickOperations {
   def strip = apply(SimpleOperation("-strip"))
 
   /**
-   * define additional parameters. see -define option
+   * Automagically orient (rotate) an image created by a digital camera.
    */
-  def define(settings: Map[String, String]) = apply(Define(settings))
-
   def autoorient = apply(SimpleOperation("-auto-orient"))
 
-  def unsharp(settings: UnsharpSpec) = apply(Unsharp(settings))
+  /**
+   * sharpen the image with an unsharp mask operator.
+   *
+   * @param radius    The radius of the Gaussian, in pixels,  not counting the center
+   *                  pixel (default 0).
+   * @param sigma     The standard deviation of the Gaussian, in pixels (default 1.0).
+   * @param amount    The fraction of the difference between the original and the blur
+   *                  image that is added back into the original (default 1.0).
+   * @param threshold The threshold, as a fraction of QuantumRange, needed to apply the
+   *                  difference amount (default 0.05).
+   */
+  def unsharp(radius: Int, sigma: Double = 1.0, amount: Double = 1.0, threshold: Double = 0.05) =
+    apply(new Operation {
+      def commands = "-unsharp" :: radius + "x" + sigma + "+" + amount + "+" + threshold :: Nil
+    })
 
   /**
-   * create thumbnail
+   * changes the size of an image to the given dimensions and removes any associated profiles.
    */
-  def thumbnail(size: Size) = apply(Thumbnail(size))
+  def thumbnail(geometry: ImageGeometry) = apply(ParameterOperation("-thumbnail", geometry))
+
+  /**
+   * Set the image size and offset.
+   */
+  def extent(geometry: ImageGeometry) = apply(ParameterOperation("-extent", geometry))
+
+  def background(color: Color = white) = apply(ParameterOperation("-background", color))
+
+  def background(color: String) = apply(ParameterOperation("-background", Color(color)))
+  /**
+   * Sets the current gravity suggestion for various other settings and options.
+   */
+  def gravity(gravity: Gravity.Gravity = Gravity.NorthWest) = apply(ParameterOperation("-gravity", gravity))
+
+  /**
+   * Adjust the canvas and offset information of the image.
+   */
+  def repage(geometry: ImageGeometry) = apply(ParameterOperation("-repage", geometry))
+
+  /**
+   * completely remove/reset the virtual canvas meta-data from the images
+   */
+  def repage = apply(SimpleOperation("+repage"))
 
   /**
    * write the result to the given file
@@ -42,54 +82,15 @@ trait ImageManipulation extends MagickOperations {
   def write(file: File, attributes: Iterable[Attribute] = Nil): MagickResult
 }
 
-trait Parameters {
-  def width(width: Int) = new {
-    def height(height: Int) = Size(width, height)
-  }
+object Gravity extends Enumeration {
+  type Gravity = Value
+  val None, Center, East, Forget, NorthEast, North, NorthWest, SouthEast, South, SouthWest, West, Static = Value
 }
-
-case class Unsharp(spec: UnsharpSpec) extends Operation {
-  def commands = spec.commands
-}
-
-trait UnsharpSpec extends HasCommands
-
-trait UnsharpDefinition {
-  def radius(radius: Int) = new UnsharpSpec {
-    def commands = format("%d", radius) :: Nil
-
-    def x(sigma: Double) = new UnsharpSpec {
-      def commands = format("%dx%s", radius, sigma) :: Nil
-
-      def +(amount: Double) = new UnsharpSpec {
-        def commands = format("%dx%s+%s", radius, sigma, amount) :: Nil
-
-        def +(threshold: Double) = new UnsharpSpec {
-          def commands = format("%dx%s+%s+%s", radius, sigma, amount, threshold) :: Nil
-        }
-      }
-    }
-  }
-}
-
-object UnsharpDefinition extends UnsharpDefinition
 
 case class Define(settings: Map[String, String]) extends Operation {
-  def commands = "-define" :: Nil //settings.toList.map(e => "%s=%s".format(e._1, e._2))
-}
+  def commands = "-define" :: Nil
 
-/**
- * changes the size of an image to the given dimensions and removes any associated profiles.
- */
-case class Thumbnail(size: Size) extends Operation {
-  def commands = "-thumbnail" :: size.toString :: Nil
-}
-
-/**
- * defines a crop operation
- */
-case class Crop(area: Area) extends Operation {
-  def commands = "-crop" :: area.toString :: Nil
+  //settings.toList.map(e => "%s=%s".format(e._1, e._2))
 }
 
 trait AreaDefinition {
@@ -106,7 +107,6 @@ trait AreaDefinition {
  */
 case class Area(width: Int, height: Int, x: Int = 0, y: Int = 0) extends AreaDefinition {
   def size = Size(width, height)
-
 
   def x(xOffset: Int): Area = Area(width, height, xOffset, y)
 
@@ -128,6 +128,10 @@ case class Size(width: Int, height: Int) extends AreaDefinition {
   def y(yOffset: Int) = Area(width, height, 0, yOffset)
 
   override def toString = width + "x" + height
+}
+
+object Size {
+  def apply(s: (Int, Int)): Size = Size(s._1, s._2)
 }
 
 /**
