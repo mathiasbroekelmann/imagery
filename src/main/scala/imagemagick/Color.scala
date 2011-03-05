@@ -25,7 +25,7 @@ trait ColorSpecification {
   def color(red: Int, green: Int, blue: Int) = Color(red, green, blue)
 }
 
-object Color {
+object Color extends ColorSpecification {
 
   def apply(s: String): Color = new Color {
     lazy val spec = if (s.startsWith("#")) format("%s", s) else s
