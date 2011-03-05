@@ -58,6 +58,9 @@ trait ImageManipulation extends MagickOperations with ColorSpecification {
    */
   def extent(geometry: ImageGeometry) = apply(ParameterOperation("-extent", geometry))
 
+  /**
+   * 
+   */
   def background(color: Color = white) = apply(ParameterOperation("-background", color))
 
   def background(color: String) = apply(ParameterOperation("-background", Color(color)))
@@ -79,7 +82,7 @@ trait ImageManipulation extends MagickOperations with ColorSpecification {
   /**
    * write the result to the given file
    */
-  def write(file: File, attributes: Iterable[Attribute] = Nil): MagickResult
+  def write(file: File, attributes: MagickAttributes = MagickAttributes.empty): MagickResult
 }
 
 object Gravity extends Enumeration {
@@ -121,17 +124,13 @@ case class Area(width: Int, height: Int, x: Int = 0, y: Int = 0) extends AreaDef
 /**
  * defines width and height
  */
-case class Size(width: Int, height: Int) extends AreaDefinition {
+case class Size(width: Int, height: Int, offset: Option[Int] = None) extends AreaDefinition {
 
   def x(xOffset: Int) = Area(width, height, xOffset, 0)
 
   def y(yOffset: Int) = Area(width, height, 0, yOffset)
 
-  override def toString = width + "x" + height
-}
-
-object Size {
-  def apply(s: (Int, Int)): Size = Size(s._1, s._2)
+  override def toString = width + "x" + height + offset.map("+" + _).getOrElse("")
 }
 
 /**
