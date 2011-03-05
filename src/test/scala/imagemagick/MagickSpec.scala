@@ -2,7 +2,8 @@ package org.imagemagick
 
 import org.specs.Specification
 import java.io.File
-import org.imagemagick.Magick._
+import org.imagemagick.ImageMagick._
+import Gravity._
 
 /**
  * User: mathias
@@ -14,53 +15,52 @@ object MagickSpec extends Specification {
   "magick" should {
 
     "basic image attributes definition using case class" in {
-      val attrs = ImageAttributes()
-      attrs.quality must_== None
-      attrs.size must_== None
-      val qualAttrs = attrs.copy(quality = Some(5))
-      qualAttrs.quality must_== Some(5)
-      qualAttrs.size must_== None
+      val attrs = convert.quality(95).size(111,222)
+      val (quality :: qValue :: size :: sValue :: Nil) = attrs.commands.toList
+      quality must_== "-quality"
+      qValue must_== "95"
+      size must_== "-size"
+      sValue must_== "111x222"
     }
 
     val in = new File("src/test/resources/fruehling.jpg")
     val out = new File("target/fruehling.jpg")
 
     "thumbnail image operation" in {
-      read(in).thumbnail(Geometry(100, 200)).write(out)
+      convert.read(in).thumbnail(Geometry(100, 200)).write(out)
       out mustVerify (_.exists)
     }
 
     "size with thumbnail operation" in {
-      convert(
-        Magick.size(width = 500, height = 500),
-        quality(95)
-      ).read(in).thumbnail(Geometry(width = 50, height = 50))
+      convert.size(500, 500)
+             .quality(95)
+//             .read(in)
+//             .thumbnail(Geometry(width = 50, height = 50))
     }
 
+    import Color._
     "background operation" in {
-      val (file :: command :: param :: Nil) = read(in).background(transparent).commands.toList
+      val (file :: command :: param :: Nil) = convert.read(in).background(transparent).commands.toList
       command must_== "-background"
       param must_== "#00000000"
     }
 
     "gravity" in {
-      val (file :: command :: param :: Nil) = read(in).gravity(Gravity.North).commands.toList
+      val (file :: command :: param :: Nil) = convert.read(in).gravity(Gravity.North).commands.toList
       command must_== "-gravity"
       param must_== "North"
     }
 
     "thumbnail creation by using pad out the image" in {
-      read(in).thumbnail(Geometry(100, 100).>)
+      convert.read(in).thumbnail(Geometry(100, 100).>)
         .background(white)
-        .gravity(Gravity.Center)
+        .gravity(Center)
         .extent(Geometry(150, 100))
         .write(new File("target/fruehling_pad_out_tn.jpg"))
       out mustVerify (_.exists)
     }
 
     "image geometry specification" in {
-
-      import Geometry._
 
       "width and height" in {
         val heightOnly = Geometry(height = Some(100))

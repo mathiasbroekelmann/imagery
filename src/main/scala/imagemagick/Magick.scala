@@ -9,34 +9,19 @@ import org.apache.commons.io.IOUtils
  * Date: 01.03.11 20:23
  * Time: 20:23
  */
-object Magick extends ColorSpecification {
+object ImageMagick {
 
-  def convert(attributes: Attribute*): Magick =
-    convert(Option(attributes).map(_.toList).getOrElse(Nil))
-
-  def convert(attributes: Iterable[Attribute]): Magick =
-    Magick(attributes)
-
-  def read(file: File, moreFiles: File*) = new Magick().read(file, moreFiles: _*)
-
-  def size(width: Int, height: Int) = new Attribute {
-    def commands = "-size" :: width + "x" + height :: Nil
-  }
-
-  def quality(value: Byte) = new Attribute {
-    def commands = "-quality" :: value.toString :: Nil
-  }
+  def convert(attributes: MagickAttributes): Magick = new Magick("convert", attributes)
+  
+  def convert: Magick = convert(MagickAttributes.empty)
 }
 
-case class AttributeCommand[A](c: A => Iterable[String]) {
-  def ->(value: A) = new Attribute {
-    def commands = c(value)
-  }
-}
+class Magick(command: String, attributes: MagickAttributes = MagickAttributes.empty)
+  extends Disposable
+  with MagickAttributesSpecification
+  with ColorSpecification {
 
-case class Magick(attributes: Iterable[Attribute] = Nil) extends Disposable {
-
-  private[this] val pb = new ProcessBuilder("convert")
+  private[this] lazy val pb = new ProcessBuilder(command)
 
   {
     // check that convert is available
@@ -52,21 +37,24 @@ case class Magick(attributes: Iterable[Attribute] = Nil) extends Disposable {
     assert(ret == 0, "imagemagick is not installed")
   }
 
-  private[this] def execute(prepared: PreparedMagick, file: File, outputAttributes: Iterable[Attribute]): MagickResult = {
+  private[this] def execute(prepared: PreparedMagick, file: File, outputAttributes: MagickAttributes = MagickAttributes.empty): MagickResult = {
 
     def files(files: Iterable[File]): Iterable[String] = files.map(_.getAbsolutePath)
 
-    val commands = ("convert" +:
-      attributes.map(_.commands.toList).flatten.toList ::
+    val commands = (command +:
+      attributes.commands.toList ::
       prepared.commands ::
-      outputAttributes.map(_.commands.toList).flatten ::
+      outputAttributes.commands ::
       List(file.getAbsolutePath) :: Nil).flatten
 
     println(commands.mkString(" "))
+    
     val process = new ProcessBuilder(commands).start
     val result = process.waitFor
     println("result code: " + result)
     println(IOUtils.readLines(process.getErrorStream))
+
+    // TODO: magick result
     new MagickResult {}
   }
 
@@ -110,12 +98,10 @@ trait PreparedMagick extends ImageManipulation with ImageGeometryDefinition {
   /**
    * write the result to the given file
    */
-  def write(file: File, attributes: Iterable[Attribute] = Nil) = executor(this, file, attributes)
+  def write(file: File, attributes: MagickAttributes = MagickAttributes.empty) = executor(this, file, attributes)
 
-  protected[this] def executor: ((PreparedMagick, File, Iterable[Attribute]) => MagickResult)
+  protected[this] def executor: ((PreparedMagick, File, MagickAttributes) => MagickResult)
 }
-
-trait Attribute extends HasCommands
 
 trait Disposable {
   /**
@@ -132,7 +118,7 @@ trait Disposable {
 trait Operation extends HasCommands
 
 case class SomePreparedMagick(files: Iterable[File],
-                              executor: ((PreparedMagick, File, Iterable[Attribute]) => MagickResult),
+                              executor: ((PreparedMagick, File, MagickAttributes) => MagickResult),
                               operations: Iterable[Operation] = Nil)
   extends PreparedMagick {
 
@@ -142,16 +128,45 @@ case class SomePreparedMagick(files: Iterable[File],
   }
 }
 
+trait MagickAttributesSpecification {
+  def size(width: Int, height: Int): MagickAttributes = new MagickAttributes{}.size(width, height)
+
+  def quality(q: Int): MagickAttributes = new MagickAttributes{}.quality(q)
+}
+
 /**
  * define image attributes
  */
-case class ImageAttributes(size: Option[Size] = None,
-                           quality: Option[Int] = None) extends HasCommands {
-  def commands = {
-    val cmds = (for (s <- size) yield ("-size" :: s.width + "x" + s.height :: Nil)) ::
-      (for (q <- quality) yield ("-quality" :: q + "" :: Nil)) :: Nil
-    cmds.flatten.flatten
+trait MagickAttributes extends HasCommands {
+  def commands = attributes.map(_.commands).flatten
+
+  def size(width: Int, height: Int) = apply(ParameterAttribute("-size", width + "x" + height))
+
+  def quality(q: Int) = apply(ParameterAttribute("-quality", q.toString))
+
+  def attributes: Iterable[MagickAttribute] = Nil
+
+  def apply(attribute: MagickAttribute): MagickAttributes = {
+    new MagickAttributes {
+      override def attributes = MagickAttributes.this.attributes ++ List(attribute)
+    }
   }
+}
+
+case class ParameterAttribute(command: String, parameter: () => Iterable[String]) extends MagickAttribute {
+  def commands = Stream.cons(command, parameter().toStream)
+}
+
+object ParameterAttribute {
+  def apply(command: String, parameter: => String): MagickAttribute = new MagickAttribute {
+    def commands = List(command, parameter)
+  }
+}
+
+trait MagickAttribute extends HasCommands
+
+object MagickAttributes {
+  def empty: MagickAttributes = new MagickAttributes {}
 }
 
 trait HasCommands {
