@@ -32,7 +32,8 @@ class Project(info: ProjectInfo)
   lazy val java_net_repo = "Java.net Repository" at
            "http://download.java.net/maven/2"
   
-  lazy val commonsIo        = "commons-io" % "commons-io" % "1.4"
+  lazy val commonsIo        = "commons-io" % "commons-io" % "1.4" withSources()
+  lazy val commonsLang        = "commons-lang" % "commons-lang" % "2.5"
 
   lazy val scalate_guice    = "org.fusesource.scalate" % "scalate-guice"     % "1.4.0" withSources()
   lazy val servlet          = "javax.servlet"          % "servlet-api"       % "2.5" 
