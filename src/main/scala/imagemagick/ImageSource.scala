@@ -10,12 +10,24 @@ import java.io.{File, OutputStream, InputStream}
  */
 trait ImageSource extends HasCommands with ImageAttributes {
 
+  /**
+   * the reference to the image source
+   */
   def imageSource = this
 
+  /**
+   * List of commands to apply for the command line
+   */
   def commands = attributes.map(_.commands).flatten ++ sourceCommands
 
+  /**
+   * Plain source specification as it is used in the command line
+   */
   def sourceSpec: String
 
+  /**
+   * List of commands for the source
+   */
   def sourceCommands = sourceSpec :: Nil
 
   /**
@@ -27,11 +39,13 @@ trait ImageSource extends HasCommands with ImageAttributes {
   /**
    * faster and less resource intensive crop image as it is read
    */
-  def cropped(geometry: ImageGeometry) = new ImageSource {
+  def cropped(geometry: ImageGeometry) = {
+    val geo = geometry
+    new ImageSource {
+      override def attributes = ImageSource.this.attributes
 
-    override def attributes = ImageSource.this.attributes
-
-    def sourceSpec = ImageSource.this.sourceSpec + "[" + geometry.spec + "]"
+      def sourceSpec = ImageSource.this.sourceSpec + "[" + geo.spec + "]"
+    }
   }
 
   /**
@@ -46,7 +60,7 @@ trait ImageSourceSpec {
    * Create an image source for a built in pattern.
    */
   def pattern(pattern: String) = new {
-    
+
     /**
      * define the size for the pattern
      */
@@ -63,6 +77,11 @@ trait ImageSourceSpec {
    * create an image source for a given file
    */
   def image(file: File) = FileInputSource(file)
+
+  /**
+   * create an image source for a given file
+   */
+  def image(file: String): FileInputSource = image(new File(file))
 }
 
 object ImageSourceSpec extends ImageSourceSpec
@@ -101,6 +120,7 @@ case class ByteArrayInputSource(bytes: Array[Byte]) extends StreamSource {
 }
 
 case class FileInputSource(file: File) extends ImageSource {
+
   def sourceSpec = file.getAbsolutePath
 
   /**
