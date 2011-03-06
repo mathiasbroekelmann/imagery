@@ -1,7 +1,7 @@
 package org.imagemagick
 
-import java.io.OutputStream
 import org.apache.commons.lang.builder.HashCodeBuilder
+import java.io.{File, OutputStream}
 
 /**
  * User: mathias
@@ -15,19 +15,33 @@ trait ImageAttributes {
 
   def attributes: Iterable[ImageAttibute] = Nil
 
-  def apply(attribute: ImageAttibute): ImageSource = ImageSourceWithAttributes(imageSource, attributes ++ List(attribute))
+  implicit def build(source: ImageSource, attributes: Iterable[ImageAttibute]) =
+    new ImageSourceWithAttributes(source, attributes)
 
-  def depth(value: Int) = {
-    assert(value > 0, "Color depth must be greater than 0, but was " + value)
-    apply(new ImageAttibute("depth") {
-      override def commands = super.commands ::: value.toString :: Nil
-    })
+  /**
+   * apply the attribute the the list of existing attributes.
+   * function is used to create the result of the apply function.
+   */
+  def apply[A](attribute: ImageAttibute)
+              (implicit f: (ImageSource, Iterable[ImageAttibute]) => A): A =
+    withAttributes(attributes).apply(attribute)(f)
+
+  /**
+   * apply new attribute with a given set of existing attributes.
+   */
+  def withAttributes(currentAttributes: Iterable[ImageAttibute]) = new {
+
+    /**
+     * apply the attribute the the list of attributes.
+     * function is used to create the result of the apply function.
+     */
+    def apply[A](attribute: ImageAttibute)
+                (implicit f: (ImageSource, Iterable[ImageAttibute]) => A): A =
+      f(imageSource, currentAttributes ++ List(attribute))
   }
 
   def size(width: Int, height: Int, offset: Option[Int] = None) =
-    apply(new ImageAttibute("size") {
-      override def commands = super.commands ::: width + "x" + height + offset.map("+" + _.toString).getOrElse("") :: Nil
-    })
+    apply(new ParameterImageAttribue("size", (width + "x" + height + offset.map("+" + _.toString).getOrElse(""))))
 
   /**
    * Join images into a single multi-image file.
@@ -44,21 +58,22 @@ trait ImageAttributes {
    * Applies the given transformation matrix.
    */
   def transform(sx: Double = 0, rx: Double = 0, ry: Double = 0, sy: Double = 0, tx: Double = 0, ty: Double = 0) =
-    apply(new ImageAttibute("affine") {
-      override def commands = super.commands ::: sx + "," + rx + "," + ry + "," + sy + "," + tx + "," + ty :: "-transform" :: Nil
-    })
+    apply(new ParameterImageAttribue("affine", sx + "," + rx + "," + ry + "," + sy + "," + tx + "," + ty :: "-transform" :: Nil))
 
   /**
    * Gives control of the alpha/matte channel of an image.
    */
-  def alpha(alphaType: Alpha.Alpha) = apply(new ImageAttibute("alpha") {
-    override def commands = super.commands ::: alphaType.toString :: Nil
-  })
+  def alpha(alphaType: Alpha.Alpha): ImageSource = alpha(alphaType.toString)
+
+  /**
+   * Gives control of the alpha/matte channel of an image.
+   */
+  def alpha(alphaType: String) = apply(new ParameterImageAttribue("alpha", alphaType.toString))
 
   /**
    * Enable of the rendering of anti-aliasing pixels when drawing fonts and lines.
    */
-  def antialias: ImageSource = antialias()
+  def antialias: ImageSource = antialias(true)
 
   /**
    * Enable/Disable of the rendering of anti-aliasing pixels when drawing fonts and lines.
@@ -71,9 +86,7 @@ trait ImageAttributes {
    *
    * For a different encryption method, see encipher and decipher.
    */
-  def authenticate(password: String) = apply(new ImageAttibute("authenticate") {
-    override def commands = super.commands ::: password :: Nil
-  })
+  def authenticate(password: String) = apply(new ParameterImageAttribue("authenticate", password))
 
   /**
    * Set the background color.
@@ -81,16 +94,14 @@ trait ImageAttributes {
    * The color is specified using the format described under the fill option.
    * The default background color (if none is specified or found in the image) is white.
    */
-  def background(color: Color) = apply(new ImageAttibute("background") {
-    override def commands = super.commands ::: color.spec :: Nil
-  })
+  def background(color: Color) = apply(new ParameterImageAttribue("background", color.spec))
 
-  // def bias
+  // TODO: def bias
 
   /**
    * Use black point compensation.
    */
-  def blackPointCompensation: ImageSource = blackPointCompensation()
+  def blackPointCompensation: ImageSource = blackPointCompensation(true)
 
   /**
    * Enable/Disable black point compensation.
@@ -100,18 +111,14 @@ trait ImageAttributes {
   /**
    * Set the blue chromaticity primary point.
    */
-  def bluePrimary(x: Int, y: Int) = apply(new ImageAttibute("blue-primary") {
-    override def commands = super.commands ::: x + "," + y :: Nil
-  })
+  def bluePrimary(x: Int, y: Int) = apply(new ParameterImageAttribue("blue-primary", x + "," + y))
 
   /**
    * Set the border color.
    *
    * The default border color is #DFDFDF, this shade of gray.
    */
-  def borderColor(color: Color) = apply(new ImageAttibute("border-color") {
-    override def commands = super.commands ::: color.spec :: Nil
-  })
+  def borderColor(color: Color) = apply(new ParameterImageAttribue("border-color", color.spec))
 
   /**
    * The caption can contain special format characters listed in the Format and Print Image Properties.
@@ -120,47 +127,706 @@ trait ImageAttributes {
    * If the first character of string is @, the image caption is read from a file titled by the remaining
    * characters in the string. Comments read in from a file are literal; no embedded formatting characters are recognized.
    */
-  def caption(caption: String) = apply(new ImageAttibute("caption") {
-    override def commands = super.commands ::: caption :: Nil
-  })
+  def caption(caption: String) = apply(new ParameterImageAttribue("caption", caption))
 
   /**
    * Specify those image color channels to which subsequent operators are limited.
    */
-  def channel(channel: Channel.Channel, moreChannels: Channel.Channel*) = apply(new ImageAttibute("channel") {
-
+  def channel(channel: Channel.Channel, moreChannels: Channel.Channel*) = {
     lazy val spec = channel :: Option(moreChannels).map(_.toList).getOrElse(Nil)
-
-    override def commands = super.commands ::: spec.mkString(",") :: Nil
-  })
+    apply(new ParameterImageAttribue("channel", spec.mkString(",")))
+  }
 
   /**
    * Embed a comment in an image.
    */
-  def comment(comment: String) = apply(new ImageAttibute("comment") {
-    override def commands = super.commands ::: comment :: Nil
-  })
+  def comment(comment: String) = apply(new ParameterImageAttribue("comment", comment))
 
   /**
    * Use pixel compression specified by type when writing the image.
    */
-  def compress(compressType: Compression.Value): ImageSource = compress(Option(compressType))
+  def compress(compressType: Compression.Compression): ImageSource = compress(Option(compressType))
 
   /**
    * Use pixel compression specified by type when writing the image.
    * Use None to store the binary image in an uncompressed format.
    */
-  def compress(compressType: Option[Compression.Value] = None) = apply(new ImageAttibute("compress", compressType.isDefined) {
-    override def commands = compressType match {
-      case Some(c) => super.commands ::: c.toString :: Nil
-      case _ => super.commands
-    }
-  })
+  def compress(compressType: Option[Compression.Compression] = None) =
+    apply(new ParameterImageAttribue("compress", compressType.map(_.toString), compressType.isDefined))
 
-  def define(settings: Definitions) = {}
+  /**
+   * TODO: add specific global settings generally used to control coders and image processing operations.
+   */
+  def define(settings: Definitions) = this
+
+  /**
+   * display the next image after pausing.
+   */
+  def delay(ticks: Int, ticksPerSeconds: Int = 100) = {
+    val attribute = new DelayAttibute(ticks, ticksPerSeconds)
+    apply(attribute) {
+      (source, attrs) =>
+      // remapping attributes
+        val t = ticks
+        val tps = ticksPerSeconds
+        new ImageSourceWithAttributes(source, attrs) with Delay {
+          val ticks = t
+
+          def delayAttributes = ImageAttributes.this.attributes
+
+          override val ticksPerSeconds = tps
+        }.asInstanceOf[ImageSource with Delay]
+    }
+  }
+
+  /**
+   * Set the horizontal and vertical resolution of an image for rendering to devices.
+   */
+  def density(width: Int, height: Int): ImageSource = density(width, Some(height))
+
+  /**
+   * Set the horizontal and optionally the vertical resolution of an image for rendering to devices.
+   */
+  def density(width: Int, height: Option[Int] = None) =
+    apply(new ParameterImageAttribue("density", width + height.map("x" + _).getOrElse("")))
+
+  def depth(value: Int) = {
+    assert(value > 0, "Color depth must be greater than 0, but was " + value)
+    apply(new ParameterImageAttribue("depth", value.toString))
+  }
+
+  /**
+   * render text right-to-left or left-to-right.
+   */
+  def direction(dir: Direction.Direction) =
+    apply(new ParameterImageAttribue("direction", dir.toString))
+
+  /**
+   * define the GIF disposal image setting for images that are being created or read in.
+   *
+   * TODO: implement +dispose
+   */
+  def dispose(method: Dispose.Dispose): ImageSource = this.dispose(method.toString)
+
+  /**
+   * define the GIF disposal image setting for images that are being created or read in.
+   *
+   * TODO: implement +dispose
+   */
+  def dispose(method: String) = apply(new ParameterImageAttribue("dispose", method))
+
+  /**
+   * Apply a Riemersma or Floyd-Steinberg error diffusion dither to images when general color reduction is
+   * applied via an option, or automagically when saving to specific formats.
+   * This enabled by default.
+   */
+  def dither(method: Dither.Dither): ImageSource = this.dither(method.toString)
+
+  /**
+   * Apply a Riemersma or Floyd-Steinberg error diffusion dither to images when general color reduction is
+   * applied via an option, or automagically when saving to specific formats.
+   * This enabled by default.
+   */
+  def dither(method: String) = apply(new ParameterImageAttribue("dither", method))
+
+  /**
+   * specify the text encoding.
+   */
+  def encoding(encoding: Encoding.Encoding): ImageSource = this.encoding(encoding.toString)
+
+  /**
+   * specify the text encoding.
+   */
+  def encoding(encoding: String) = apply(new ParameterImageAttribue("encoding", encoding))
+
+  /**
+   * Specify endianness (MSB or LSB) of the image.
+   */
+  def endian(endian: Endian.Endian) =
+    apply(new ParameterImageAttribue("endian", endian.toString))
+
+  /**
+   * Extract the specified area from image.
+   *
+   * This option is most useful for extracting a subregion of a very large raw image
+   */
+  def extract(geometrie: ImageGeometry) =
+    apply(new ParameterImageAttribue("extract", geometrie.spec))
+
+  /**
+   * Set a font family for text.
+   */
+  def family(fontFamily: String) =
+    apply(new ParameterImageAttribue("family", fontFamily))
+
+  /**
+   * color to use when filling a graphic primitive.
+   */
+  def fill(color: Color) =
+    apply(new ParameterImageAttribue("fill", color.spec))
+
+  /**
+   * Use this type of filter when resizing or distorting an image.
+   * The result implements Filter which allows the definition of expert settings.
+   *
+   * @see Filter for defining expert settings
+   */
+  def filter(filterType: Filter.Filter) = {
+    apply(new ParameterImageAttribue("filter", filterType.toString)) {
+      (source, attrs) =>
+        (new ImageSourceWithAttributes(source, attrs) with Filter).asInstanceOf[ImageSource with Filter]
+    }
+  }
+
+  /**
+   * set the font to use when annotating images with text, or creating labels.
+   */
+  def font(name: String) = apply(new ParameterImageAttribue("font", name))
+
+  /**
+   * the image format type.
+   */
+  def format(name: String) = apply(new ParameterImageAttribue("format", name))
+
+  /**
+   * Colors within this distance are considered equal.
+   */
+  def fuzz(distance: AbsoluteOrPercent) = apply(new ParameterImageAttribue("fuzz", distance.spec))
+
+  /**
+   * Colors within this distance are considered equal.
+   */
+  def fuzz(distance: Int): ImageSource = fuzz(Value(distance))
+
+  /**
+   * Set the preferred size and location of the image.
+   */
+  def geometry(geometry: ImageGeometry) = apply(new ParameterImageAttribue("geometry", geometry.spec))
+
+  /**
+   * Sets the current gravity suggestion for various other settings and options.
+   */
+  def gravity(value: Gravity.Gravity) = apply(new ParameterImageAttribue("gravity", value.toString))
+
+  /**
+   * Sets the current gravity suggestion for various other settings and options.
+   */
+  def greenPrimary(x: Int, y: Int) = apply(new ParameterImageAttribue("green-primary", x + "," + y))
+
+  /**
+   * the type of interlacing scheme.
+   */
+  def interlace(scheme: Interlace.Interlace) = apply(new ParameterImageAttribue("interlace", scheme.toString))
+
+  /**
+   * use this type of rendering intent when managing the image color.
+   */
+  def intent(intent: Intent.Intent) = apply(new ParameterImageAttribue("intent", intent.toString))
+
+  /**
+   * Set the pixel color interpolation method to use when looking up a color based on a floating point or real value.
+   */
+  def interpolate(interpolation: Interpolation.Interpolation) =
+    apply(new ParameterImageAttribue("interpolate", interpolation.toString))
+
+  /**
+   * assign a label to an image.
+   */
+  def label = new {
+
+    /**
+     * reset any previous defined label.
+     */
+    def reset = ImageAttributes.this.apply(new ImageAttibute("label", false))
+
+    /**
+     * assign a label to an image.
+     */
+    def apply(name: String) = ImageAttributes.this.apply(new ParameterImageAttribue("label", name))
+  }
+
+  /**
+   * Set the pixel cache resource limit. define the limit in bytes or number of files
+   * use SizeConversions to define sizes like 2 GB
+   */
+  def limit(resource: CacheResource.CacheResource, limit: Long) =
+    apply(new ParameterImageAttribue("limit", resource.toString :: limit.toString :: Nil))
+
+
+  //TODO: def linewidth - missing doc
+
+  /**
+   * add Netscape loop extension to your GIF animation.
+   */
+  def loop(iterations: Int) = apply(new ParameterImageAttribue("loop", iterations.toString))
+
+  /**
+   * define an image mask
+   */
+  def mask = new {
+
+    /**
+     * reset any previous defined mask
+     */
+    def reset = ImageAttributes.this.apply(new ImageAttibute("mask", false))
+
+    /**
+     * Composite the image pixels as defined by the mask.
+     */
+    def apply(file: File) = ImageAttributes.this.apply(new ParameterImageAttribue("mask", file.getAbsolutePath))
+  }
+
+  /**
+   * Specify the color to be used with the -frame option.
+   */
+  def mattcolor(color: Color) = apply(new ParameterImageAttribue("mattcolor", color.spec))
+
+  /**
+   * specify orientation of a digital camera image.
+   */
+  def orient(orientation: ImageOrientation.ImageOrientation) =
+    apply(new ParameterImageAttribue("orient", orientation.toString))
+
+  /**
+   * Set the size and location of an image on the larger virtual canvas.
+   */
+  def page(geometry: ImageGeometry) = apply(new ParameterImageAttribue("page", geometry.spec))
+
+  /**
+   * For convenience you can specify the page size using media (see below).
+   * Offsets can then be added as with other geometry arguments e.g. page(Letter offset (43, 43))
+   */
+  def page(media: Media) = apply(new ParameterImageAttribue("page", media.spec))
+
+  /**
+   * deactivate any previous page setting
+   */
+  def page = apply(new ImageAttibute("page", false))
+
+  /**
+   * pointsize of the PostScript, OPTION1, or TrueType font.
+   */
+  def pointsize(value: Int) = apply(new ParameterImageAttribue("pointsize", value.toString))
+
+  /**
+   * image preview type.
+   * Use this option to affect the preview operation of an image
+   */
+  def preview(previewType: Preview.Preview) = apply(new ParameterImageAttribue("preview", previewType.toString))
+
+  /**
+   * JPEG/MIFF/PNG compression level. The value depends on the used image format.
+   * See http://www.imagemagick.org/script/command-line-options.php#quality
+   */
+  def quality(value: Int) = apply(new ParameterImageAttribue("quality", value.toString))
+
+  /**
+   * Set the red chromaticity primary point.
+   */
+  def redPrimary(x: Int, y: Int) = apply(new ParameterImageAttribue("red-primary", x + "," + y))
+
+  /**
+   * Set a region in which subsequent operations apply.
+   * The x and y offsets are treated in the same manner as in crop
+   */
+  def region(geometry: ImageGeometry) = apply(new ParameterImageAttribue("region", geometry.spec))
+
+  /**
+   * render vector operations.
+   * This useful when saving the result to vector formats such as MVG or SVG.
+   */
+  def render: ImageSource = render(true)
+
+  /**
+   * Enable/Disable render vector operations.
+   * This useful when saving the result to vector formats such as MVG or SVG.
+   */
+  def render(activate: Boolean = true) = apply(new ImageAttibute("render", activate))
+
+  /**
+   * start defining repage setting
+   */
+  def repage = new {
+
+    /**
+     * completely remove/reset the virtual canvas meta-data from the images.
+     */
+    def reset = ImageAttributes.this.apply(new ImageAttibute("repage", false))
+
+    /**
+     * Adjust the canvas and offset information of the image.
+     */
+    def apply(geometry: ImageGeometry) = ImageAttributes.this.apply(new ParameterImageAttribue("repage", geometry.spec))
+
+  }
+
+  // TODO: sampling-factor
+
+  /**
+   * set scene number.
+   *
+   * This option sets the scene number of an image or the first image in an image sequence.
+   */
+  def scene(value: Int) = apply(new ParameterImageAttribue("scene", value.toString))
+
+  /**
+   * seed a new sequence of pseudo-random numbers
+   */
+  def seed = apply(new ImageAttibute("seed"))
+
+  /**
+   * Set a type of stretch style for fonts.
+   * This setting suggests a type of stretch that ImageMagick should try to apply to the currently selected font family.
+   */
+  def strech(fontStretch: FontStretch.FontStretch) = apply(new ParameterImageAttribue("strech", fontStretch.toString))
+
+  /**
+   * color to use when stroking a graphic primitive.
+   */
+  def stroke(color: Color) = apply(new ParameterImageAttribue("stroke", color.spec))
+
+  /**
+   * set the stroke width.
+   */
+  def strokewidth(value: Int) = apply(new ParameterImageAttribue("strokewidth", value.toString))
+
+  /**
+   * Set a font style for text.
+   */
+  def style(fontStyle: FontStyle.FontStyle) = apply(new ParameterImageAttribue("style", fontStyle.toString))
+
+  /**
+   * name of texture to tile onto the image background.
+   */
+  def texture(file: File) = apply(new ParameterImageAttribue("texture", file.getAbsolutePath))
+
+  /**
+   * Set the transparent color.
+   */
+  def transparentColor(color: Color) = apply(new ParameterImageAttribue("transparent-color", color.spec))
+
+  /**
+   * tree depth for the color reduction algorithm.
+   */
+  def treedepth(value: Int) = apply(new ParameterImageAttribue("treedepth", value.toString))
+
+  /**
+   * the image type.
+   */
+  def imagetype(imageType: ImageType.ImageType) = apply(new ParameterImageAttribue("type", imageType.toString))
+
+  /**
+   * set the color of the annotation bounding box.
+   */
+  def undercolor(color: Color) = apply(new ParameterImageAttribue("undercolor", color.spec))
+
+  /**
+   * the units of image resolution.
+   */
+  def units(value: ImageResolutionUnit.ImageResolutionUnit) =
+    apply(new ParameterImageAttribue("units", value.toString))
+
+  /**
+   * Specify contents of virtual pixels.
+   */
+  def virtualPixel(method: VirtualPixelMethod.VirtualPixelMethod) =
+    apply(new ParameterImageAttribue("virtual-pixel", method.toString))
+
+  /**
+   * Set a font weight for text.
+   */
+  def weight(fontWeight: FontWeight.FontWeight) =
+    apply(new ParameterImageAttribue("weight", fontWeight.toString))
 }
 
+object FontWeight extends Enumeration {
+  type FontWeight = Value
+
+  val All, Bold, Bolder, Lighter, Normal = Value
+}
+
+
+object VirtualPixelMethod extends Enumeration {
+  type VirtualPixelMethod = Value
+
+  val Background, Black, CheckerTile, Dither, Edge, Gray, HorizontalTile, HorizontalTileEdge, Mirror = Value
+  val Random, Tile, Transparent, VerticalTile, VerticalTileEdge, White = Value
+}
+
+object ImageResolutionUnit extends Enumeration {
+  type ImageResolutionUnit = Value
+
+  val Undefined, PixelsPerInch, PixelsPerCentimeter = Value
+}
+
+object ImageType extends Enumeration {
+  type ImageType = Value
+
+  val Bilevel, Grayscale, GrayscaleMatte, Palette, PaletteMatte, TrueColor = Value
+  val TrueColorMatte, ColorSeparation, ColorSeparationMatte = Value
+}
+
+object FontStyle extends Enumeration {
+  type FontStyle = Value
+
+  val Any, Italic, Normal, Oblique = Value
+}
+
+object FontStretch extends Enumeration {
+  type FontStretch = Value
+
+  val Any, Condensed, Expanded, ExtraCondensed, ExtraExpanded, Normal = Value
+  val SemiCondensed, SemiExpanded, UltraCondensed, UltraExpanded = Value
+}
+
+object Preview extends Enumeration {
+  type Preview = Value
+  val AddNoise, Blur, Brightness, Charcoal, Despeckle, Dull, EdgeDetect, Gamma, Grayscale, Hue, Implode, JPEG = Value
+  val OilPaint, Quantize, Raise, ReduceNoise, Roll, Rotate, Saturation, Segment, Shade, Sharpen, Shear, Solarize = Value
+  val Spiff, Spread, Swirl, Threshold, Wave = Value
+}
+
+object ImageOrientation extends Enumeration {
+  type ImageOrientation = Value
+  val TopLeft, TopRight, BottomRight, BottomLeft, LeftTop, RightTop, RightBottom, LeftBottom = Value
+}
+
+object CacheResource extends Enumeration {
+  type CacheResource = Value
+  val File, Area, Memory, Map, Disk, Thread, Time = Value
+}
+
+object SizeConversions {
+  implicit def size(value: Double) = SizeConversion(value)
+
+  implicit def size(value: Int) = SizeConversion(value.toDouble)
+
+  implicit def size(value: Long) = SizeConversion(value.toDouble)
+
+  implicit def size(value: Float) = SizeConversion(value.toDouble)
+}
+
+case class SizeConversion(value: Double) {
+  def KB = (value * 1024).toLong
+
+  def kb = KB
+
+  def MB = (value * 1024 * 1024).toLong
+
+  def mb = MB
+
+  def GB = (value * 1024 * 1024 * 1024).toLong
+
+  def gb = GB
+}
+
+object Interpolation extends Enumeration {
+  type Interpolation = Value
+  val Average, Bicubic, Bilinear, filter, Integer, Mesh, NearestNeighbor, Spline = Value
+}
+
+object Intent extends Enumeration {
+  type Intent = Value
+  val Absolute, Perceptual, Relative, Saturation = Value
+}
+
+object Interlace extends Enumeration {
+  type Interlace = Value
+  val Line, None, Plane, Partition, GIF, JPEG, PNG = Value
+}
+
+trait AbsoluteOrPercent extends Parameter {
+  def percent: Boolean
+}
+
+case class Percent(value: Double) extends AbsoluteOrPercent {
+  def percent = true
+
+  lazy val spec = value + "%"
+}
+
+case class Value(value: Int) extends AbsoluteOrPercent {
+  def percent = false
+
+  def spec = value.toString
+}
+
+object Filter extends Enumeration {
+  type Filter = Value
+
+  val Bartlett, Bessel, Blackman, Bohman, Box, Catrom, Cubic, Gaussian, Hamming, Hanning, Hermite, Kaiser = Value
+  val Lagrange, Lanczos, Mitchell, Parzen, Point, Quadratic, Sinc, Triangle, Welsh = Value
+}
+
+/**
+ * You can modify how the filter behaves as it scales your image through the use of these expert settings
+ */
+trait Filter extends ImageAttributes {
+
+  implicit def buildFilter(source: ImageSource, attributes: Iterable[ImageAttibute]): ImageSource with Filter = {
+    new ImageSourceWithAttributes(source, attributes) with Filter
+  }
+
+  /**
+   * Scale the X axis of the filter (and its window). Use > 1.0 for blurry or < 1.0 for sharp.
+   * This should only be used with Gaussian and Gaussian-like filters simple filters, or you may not get the expected results.
+   */
+  def blur(factor: Double) = apply(new ParameterImageAttribue("define", "filter:blur=" + factor))
+
+  /**
+   * Set the filter support radius.
+   * Defines how large the filter should be and thus directly defines how slow the filtered resampling process is.
+   */
+  def support(radius: Int) = apply(new ParameterImageAttribue("define", "filter:support=" + radius))
+
+  /**
+   * Set the number of lobes to use for the Sinc/Bessel filter.
+   * This an alternative way of specifying the 'support' range of the filter,
+   * that is designed to be more suited to windowed filters, especially when used for image distorts.
+   */
+  def lobes(count: Int) = apply(new ParameterImageAttribue("define", "filter:lobes=" + count))
+
+  def bspline(factor: Double) = apply(new ParameterImageAttribue("define", "filter:b=" + factor))
+
+  /**
+   * Redefine the values used for cubic filters such as Cubic, Catrom, Mitchel, and Hermite,
+   * as well as the Parzen Sinc windowing function. If only one of the values are defined,
+   * the other is set so as to generate a 'Keys' type cubic filter.
+   */
+  def cubic(factor: Double) = apply(new ParameterImageAttribue("define", "filter:c=" + factor))
+
+  /**
+   * Use this function directly as the scaling filter.
+   * This will allow you to directly use a windowing filter such as Blackman,
+   * rather than as its normal usage as a windowing function for 'Sinc' or 'Bessel' functions.
+   * If defined, no windowing function is used, unless the following expert setting is also defined.
+   */
+  def filter(function: String) = apply(new ParameterImageAttribue("define", "filter:filter=" + function))
+
+  /**
+   * The IIR (infinite impulse response) filters Bessel and Sinc are windowed
+   * (brought down to zero over the defined support range) with the given filter.
+   * This allows you to specify a filter function that is not normally used as a windowing function,
+   * such as Box, (which effectively turns off the windowing function), to window a Sinc,
+   * or the function the previous setting defined.
+   */
+  def window(function: String) = apply(new ParameterImageAttribue("define", "filter:window=" + function))
+}
+
+object Endian extends Enumeration {
+  type Endian = Value
+
+  val LSB, MSB = Value
+}
+
+object Encoding extends Enumeration {
+  type Encoding = Value
+
+  val AdobeCustom, AdobeExpert, AdobeStandard, AppleRoman, BIG5, GB2312 = Value
+  val None, SJIScode, Symbol, Unicode, Wansung = Value
+  val Latin2 = Value("Latin 2")
+}
+
+object Dither extends Enumeration {
+  type Dither = Value
+
+  val None, FlyedSteinberg, Riemersma = Value
+}
+
+object Dispose extends Enumeration {
+  type Dispose = Value
+
+  /**
+   * No disposal specified (equivalent to 'none').
+   */
+  val Undefined = Value
+
+  /**
+   * Do not dispose, just overlay next frame image.
+   */
+  val None = Value
+
+  /**
+   * Clear the frame area with the background color.
+   */
+  val Background = Value
+
+  /**
+   * Clear to the image prior to this frames overlay.
+   */
+  val Previous = Value
+}
+
+object Direction extends Enumeration {
+  type Direction = Value
+
+  val rightToLeft, rtl = Value("right-to-left")
+  val leftToRight, ltr = Value("left-to-right")
+}
+
+/**
+ * mixin trait for delay definitions
+ */
+trait Delay extends ImageAttributes {
+
+  def ticks: Int
+
+  def ticksPerSeconds: Int = 100
+
+  /**
+   * current attributes without the current delay definition.
+   */
+  def delayAttributes: Iterable[ImageAttibute]
+
+  /**
+   * change the image delay only if its current value exceeds the given delay
+   */
+  def onlyIfLowerThanCurrent =
+    withAttributes(delayAttributes).apply(new DelayAttibute(ticks, ticksPerSeconds, Some(">")))
+
+  /**
+   * change the image delay only if its current value exceeds the given delay
+   */
+  def > = onlyIfLowerThanCurrent
+
+  /**
+   *  changes the image delay only if current value is less than the given delay
+   */
+  def onlyIfHigherThanCurrent =
+    withAttributes(delayAttributes).apply(new DelayAttibute(ticks, ticksPerSeconds, Some("<")))
+
+  /**
+   *  changes the image delay only if current value is less than the given delay
+   */
+  def < = onlyIfHigherThanCurrent
+}
+
+class DelayAttibute(ticks: Int,
+                    ticksPerSeconds: Int = 100,
+                    condition: Option[String] = None)
+  extends ImageAttibute("delay") {
+
+  override def commands = {
+    val cond = condition match {
+      case Some(c) => c
+      case _ => ""
+    }
+    super.commands ::: ticks + (if (ticksPerSeconds == 100) "" else "x" + ticksPerSeconds) + cond :: Nil
+  }
+}
+
+/**
+ * TODO
+ */
 trait Definitions {
+
+  def apply()
+
+  /**
+   * remove all existing definitions
+   */
+  def none: Definitions
+
   /**
    * Set the display range to the minimum and maximum pixel values for the DCM image format.
    */
@@ -213,136 +879,15 @@ trait Definitions {
    */
   def pngBitDepth(depth: Int): Definitions
 
-  
+
 }
 
-/*
+object Compression extends Enumeration {
+  type Compression = Value
 
-
-
-  def define
-
-  def delay
-
-  def density
-
-  def depth
-
-  def direction
-
-  def display
-
-  def dispose
-
-  def dither
-
-  def encoding
-
-  def endian
-
-  def extract
-
-  def family
-
-  def fill
-
-  def filter
-
-  def font
-
-  def format
-
-  def fuzz
-
-  def geometry
-
-  def gravity
-
-  def greenPrimary
-
-  def interlace
-
-  def intent
-
-  def interpolate
-
-  def label
-
-  def limit
-
-  def linewidth
-
-  //def log
-
-  def loop
-
-  def mask
-
-  def mattcolor
-
-  def monitor
-
-  def orient
-
-  def page
-
-  def pointsize
-
-  def preview
-
-  def quality
-
-  //def quiet
-
-  def redPrimary
-
-  def region
-
-  def render
-
-  def repage
-
-  def samplingFactor
-
-  def scene
-
-  def seed
-
-  def strech
-
-  def stroke
-
-  def strokewidth
-
-  def style
-
-  def texture
-
-  def title
-
-  def transparentColor
-
-  def treedepth
-
-  def imagetype
-
-  def undercolor
-
-  def units
-
-  //def verbose
-
-  def virtualPixel
-
-  def weight
-*/
-
-  object Compression extends Enumeration {
-    type Compression = Value
-
-    val B44, B44A, BZip, DXT1, DXT3, DXT5, Fax, Group4, JPEG, JPEG2000, Lossless, LosslessJPEG, LZW = Value
-    val Piz, Pxr24, RLE, Zip, RunlengthEncoded, ZipS = Value
-  }
+  val B44, B44A, BZip, DXT1, DXT3, DXT5, Fax, Group4, JPEG, JPEG2000, Lossless, LosslessJPEG, LZW = Value
+  val Piz, Pxr24, RLE, Zip, RunlengthEncoded, ZipS = Value
+}
 
 object Channel extends Enumeration {
   type Channel = Value
@@ -415,8 +960,8 @@ object Alpha extends Enumeration {
   val Background = Value
 }
 
-case class ImageSourceWithAttributes(override val imageSource: ImageSource,
-                                     override val attributes: Iterable[ImageAttibute])
+class ImageSourceWithAttributes(override val imageSource: ImageSource,
+                                override val attributes: Iterable[ImageAttibute])
   extends ImageSource
   with ImageAttributes {
 
@@ -427,5 +972,15 @@ case class ImageSourceWithAttributes(override val imageSource: ImageSource,
 
 class ImageAttibute(val name: String, val activate: Boolean = true) extends HasCommands {
   def commands = ((if (activate) "-" else "+") + name) :: Nil
+}
+
+class ParameterImageAttribue(name: String,
+                             param: => Iterable[String],
+                             activate: Boolean = true)
+  extends ImageAttibute(name, activate) {
+
+  def this(name: String, param: => String) = this (name, param :: Nil)
+
+  override def commands = super.commands ::: param.toList
 }
 
