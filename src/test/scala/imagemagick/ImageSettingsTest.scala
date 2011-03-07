@@ -9,7 +9,7 @@ import java.io.File
  * Date: 06.03.11 21:21
  * Time: 21:21
  */
-class ImageAttributesTest extends Specification {
+class ImageSettingsTest extends Specification {
   "image attributes" should {
     "define image settings" in {
 

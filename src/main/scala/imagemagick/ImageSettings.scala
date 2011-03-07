@@ -9,14 +9,14 @@ import java.io.{File, OutputStream}
  * Time: 18:34
  */
 
-trait ImageAttributes {
+trait ImageSettings {
 
   def imageSource: ImageSource
 
   def attributes: Iterable[ImageAttibute] = Nil
 
   implicit def build(source: ImageSource, attributes: Iterable[ImageAttibute]) =
-    new ImageSourceWithAttributes(source, attributes)
+    new ImageSourceWithSettings(source, attributes)
 
   /**
    * apply the attribute the the list of existing attributes.
@@ -169,10 +169,10 @@ trait ImageAttributes {
       // remapping attributes
         val t = ticks
         val tps = ticksPerSeconds
-        new ImageSourceWithAttributes(source, attrs) with Delay {
+        new ImageSourceWithSettings(source, attrs) with Delay {
           val ticks = t
 
-          def delayAttributes = ImageAttributes.this.attributes
+          def delayAttributes = ImageSettings.this.attributes
 
           override val ticksPerSeconds = tps
         }.asInstanceOf[ImageSource with Delay]
@@ -274,7 +274,7 @@ trait ImageAttributes {
   def filter(filterType: Filter.Filter) = {
     apply(new ParameterImageAttribue("filter", filterType.toString)) {
       (source, attrs) =>
-        (new ImageSourceWithAttributes(source, attrs) with Filter).asInstanceOf[ImageSource with Filter]
+        (new ImageSourceWithSettings(source, attrs) with Filter).asInstanceOf[ImageSource with Filter]
     }
   }
 
@@ -337,12 +337,12 @@ trait ImageAttributes {
     /**
      * reset any previous defined label.
      */
-    def reset = ImageAttributes.this.apply(new ImageAttibute("label", false))
+    def reset = ImageSettings.this.apply(new ImageAttibute("label", false))
 
     /**
      * assign a label to an image.
      */
-    def apply(name: String) = ImageAttributes.this.apply(new ParameterImageAttribue("label", name))
+    def apply(name: String) = ImageSettings.this.apply(new ParameterImageAttribue("label", name))
   }
 
   /**
@@ -368,12 +368,12 @@ trait ImageAttributes {
     /**
      * reset any previous defined mask
      */
-    def reset = ImageAttributes.this.apply(new ImageAttibute("mask", false))
+    def reset = ImageSettings.this.apply(new ImageAttibute("mask", false))
 
     /**
      * Composite the image pixels as defined by the mask.
      */
-    def apply(file: File) = ImageAttributes.this.apply(new ParameterImageAttribue("mask", file.getAbsolutePath))
+    def apply(file: File) = ImageSettings.this.apply(new ParameterImageAttribue("mask", file.getAbsolutePath))
   }
 
   /**
@@ -451,12 +451,12 @@ trait ImageAttributes {
     /**
      * completely remove/reset the virtual canvas meta-data from the images.
      */
-    def reset = ImageAttributes.this.apply(new ImageAttibute("repage", false))
+    def reset = ImageSettings.this.apply(new ImageAttibute("repage", false))
 
     /**
      * Adjust the canvas and offset information of the image.
      */
-    def apply(geometry: ImageGeometry) = ImageAttributes.this.apply(new ParameterImageAttribue("repage", geometry.spec))
+    def apply(geometry: ImageGeometry) = ImageSettings.this.apply(new ParameterImageAttribue("repage", geometry.spec))
 
   }
 
@@ -661,10 +661,10 @@ object Filter extends Enumeration {
 /**
  * You can modify how the filter behaves as it scales your image through the use of these expert settings
  */
-trait Filter extends ImageAttributes {
+trait Filter extends ImageSettings {
 
   implicit def buildFilter(source: ImageSource, attributes: Iterable[ImageAttibute]): ImageSource with Filter = {
-    new ImageSourceWithAttributes(source, attributes) with Filter
+    new ImageSourceWithSettings(source, attributes) with Filter
   }
 
   /**
@@ -767,7 +767,7 @@ object Direction extends Enumeration {
 /**
  * mixin trait for delay definitions
  */
-trait Delay extends ImageAttributes {
+trait Delay extends ImageSettings {
 
   def ticks: Int
 
@@ -960,10 +960,10 @@ object Alpha extends Enumeration {
   val Background = Value
 }
 
-class ImageSourceWithAttributes(override val imageSource: ImageSource,
+class ImageSourceWithSettings(override val imageSource: ImageSource,
                                 override val attributes: Iterable[ImageAttibute])
   extends ImageSource
-  with ImageAttributes {
+  with ImageSettings {
 
   override def writeTo(out: OutputStream) = imageSource.writeTo(out)
 

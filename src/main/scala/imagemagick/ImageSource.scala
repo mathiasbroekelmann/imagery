@@ -8,7 +8,7 @@ import java.io.{File, OutputStream, InputStream}
  * Date: 05.03.11 14:33
  * Time: 14:33
  */
-trait ImageSource extends HasCommands with ImageAttributes {
+trait ImageSource extends HasCommands with ImageSettings {
 
   /**
    * the reference to the image source
