@@ -3,7 +3,7 @@ package org.imagemagick
 /**
  * Specify image geometry.
  *
- * @see http://www.imagemagick.org/script/command-line-processing.php#geometry
+ * @see http://www.imagemagick.org/script/settings-line-processing.php#geometry
  *
  * User: mathias
  * Date: 04.03.11 21:48

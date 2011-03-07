@@ -17,40 +17,40 @@ class ImageSourceTest extends Specification {
       val source = image(file)
 
       source must notBeNull
-      val (location :: Nil) = source.commands
+      val (location :: Nil) = source.arguments
       location must_== file.getAbsolutePath
 
       "frame range" in {
-        val (filePathWithFrames :: Nil) = source.frames(0 to 3).commands
+        val (filePathWithFrames :: Nil) = source.frames(0 to 3).arguments
         filePathWithFrames must endWith("fruehling.jpg[0-3]")
       }
 
       "frame index" in {
-        val (filePathWithFrames :: Nil) = source.frames(3, 2, 4).commands
+        val (filePathWithFrames :: Nil) = source.frames(3, 2, 4).arguments
         filePathWithFrames must endWith("fruehling.jpg[3,2,4]")
       }
 
       "size attribute" in {
-        val (size :: widthHeight :: path :: Nil) = source.size(55, 66).commands
+        val (size :: widthHeight :: path :: Nil) = source.size(55, 66).arguments
         size must_== "-size"
         widthHeight must_== "55x66"
         path must_== file.getAbsolutePath
       }
 
       "depth attribute" in {
-        val (depth :: depthValue :: path :: Nil) = source.depth(16).commands
+        val (depth :: depthValue :: path :: Nil) = source.depth(16).arguments
         depth must_== "-depth"
         depthValue must_== "16"
         path must_== file.getAbsolutePath
       }
 
       "resized" in {
-        val (path :: Nil) = source.resized(width = 100, height = 200).commands
+        val (path :: Nil) = source.resized(width = 100, height = 200).arguments
         path must endWith("fruehling.jpg[100x200]")
       }
 
       "cropped" in {
-        val (path :: Nil) = source.cropped(Geometry(120, 120).offset(10, 5)).commands
+        val (path :: Nil) = source.cropped(Geometry(120, 120).offset(10, 5)).arguments
         path must endWith("fruehling.jpg[120x120+10+5]")
       }
     }

@@ -9,44 +9,36 @@ import java.io.{File, OutputStream}
  * Time: 18:34
  */
 
-trait ImageSettings {
-
-  def imageSource: ImageSource
-
-  def attributes: Iterable[ImageAttibute] = Nil
-
-  implicit def build(source: ImageSource, attributes: Iterable[ImageAttibute]) =
-    new ImageSourceWithSettings(source, attributes)
+trait Commands {
 
   /**
-   * apply the attribute the the list of existing attributes.
+   * holds the list of commands to apply.
+   */
+  def commands: Iterable[HasCommands]
+
+  def arguments = (for(c <- commands) yield c.commands).flatten
+}
+
+trait ImageSettings extends Commands {
+
+  type Settings
+
+  /**
+   * apply the image setting the the list of existing commands.
    * function is used to create the result of the apply function.
    */
-  def apply[A](attribute: ImageAttibute)
-              (implicit f: (ImageSource, Iterable[ImageAttibute]) => A): A =
-    withAttributes(attributes).apply(attribute)(f)
+  def apply(setting: ImageSetting): Settings
 
   /**
-   * apply new attribute with a given set of existing attributes.
+   * set the width and height of the image.
    */
-  def withAttributes(currentAttributes: Iterable[ImageAttibute]) = new {
-
-    /**
-     * apply the attribute the the list of attributes.
-     * function is used to create the result of the apply function.
-     */
-    def apply[A](attribute: ImageAttibute)
-                (implicit f: (ImageSource, Iterable[ImageAttibute]) => A): A =
-      f(imageSource, currentAttributes ++ List(attribute))
-  }
-
   def size(width: Int, height: Int, offset: Option[Int] = None) =
     apply(new ParameterImageAttribue("size", (width + "x" + height + offset.map("+" + _.toString).getOrElse(""))))
 
   /**
    * Join images into a single multi-image file.
    */
-  def adjoin: ImageSource = adjoin()
+  def adjoin: Settings = adjoin()
 
   /**
    * Join images into a single multi-image file.
@@ -63,7 +55,7 @@ trait ImageSettings {
   /**
    * Gives control of the alpha/matte channel of an image.
    */
-  def alpha(alphaType: Alpha.Alpha): ImageSource = alpha(alphaType.toString)
+  def alpha(alphaType: Alpha.Alpha): Settings = alpha(alphaType.toString)
 
   /**
    * Gives control of the alpha/matte channel of an image.
@@ -73,7 +65,7 @@ trait ImageSettings {
   /**
    * Enable of the rendering of anti-aliasing pixels when drawing fonts and lines.
    */
-  def antialias: ImageSource = antialias(true)
+  def antialias: Settings = antialias(true)
 
   /**
    * Enable/Disable of the rendering of anti-aliasing pixels when drawing fonts and lines.
@@ -101,7 +93,7 @@ trait ImageSettings {
   /**
    * Use black point compensation.
    */
-  def blackPointCompensation: ImageSource = blackPointCompensation(true)
+  def blackPointCompensation: Settings = blackPointCompensation(true)
 
   /**
    * Enable/Disable black point compensation.
@@ -122,7 +114,7 @@ trait ImageSettings {
 
   /**
    * The caption can contain special format characters listed in the Format and Print Image Properties.
-   * These attributes are expanded when the caption is finally assigned to the individual images.
+   * These commands are expanded when the caption is finally assigned to the individual images.
    *
    * If the first character of string is @, the image caption is read from a file titled by the remaining
    * characters in the string. Comments read in from a file are literal; no embedded formatting characters are recognized.
@@ -145,7 +137,7 @@ trait ImageSettings {
   /**
    * Use pixel compression specified by type when writing the image.
    */
-  def compress(compressType: Compression.Compression): ImageSource = compress(Option(compressType))
+  def compress(compressType: Compression.Compression): Settings = compress(Option(compressType))
 
   /**
    * Use pixel compression specified by type when writing the image.
@@ -162,27 +154,13 @@ trait ImageSettings {
   /**
    * display the next image after pausing.
    */
-  def delay(ticks: Int, ticksPerSeconds: Int = 100) = {
-    val attribute = new DelayAttibute(ticks, ticksPerSeconds)
-    apply(attribute) {
-      (source, attrs) =>
-      // remapping attributes
-        val t = ticks
-        val tps = ticksPerSeconds
-        new ImageSourceWithSettings(source, attrs) with Delay {
-          val ticks = t
-
-          def delayAttributes = ImageSettings.this.attributes
-
-          override val ticksPerSeconds = tps
-        }.asInstanceOf[ImageSource with Delay]
-    }
-  }
+  def delay(ticks: Int, ticksPerSeconds: Int = 100, delay: Option[Delay.Delay] = None) =
+    apply(new DelayAttibute(ticks, ticksPerSeconds, delay))
 
   /**
    * Set the horizontal and vertical resolution of an image for rendering to devices.
    */
-  def density(width: Int, height: Int): ImageSource = density(width, Some(height))
+  def density(width: Int, height: Int): Settings = density(width, Some(height))
 
   /**
    * Set the horizontal and optionally the vertical resolution of an image for rendering to devices.
@@ -206,7 +184,7 @@ trait ImageSettings {
    *
    * TODO: implement +dispose
    */
-  def dispose(method: Dispose.Dispose): ImageSource = this.dispose(method.toString)
+  def dispose(method: Dispose.Dispose): Settings = this.dispose(method.toString)
 
   /**
    * define the GIF disposal image setting for images that are being created or read in.
@@ -220,7 +198,7 @@ trait ImageSettings {
    * applied via an option, or automagically when saving to specific formats.
    * This enabled by default.
    */
-  def dither(method: Dither.Dither): ImageSource = this.dither(method.toString)
+  def dither(method: Dither.Dither): Settings = this.dither(method.toString)
 
   /**
    * Apply a Riemersma or Floyd-Steinberg error diffusion dither to images when general color reduction is
@@ -232,7 +210,7 @@ trait ImageSettings {
   /**
    * specify the text encoding.
    */
-  def encoding(encoding: Encoding.Encoding): ImageSource = this.encoding(encoding.toString)
+  def encoding(encoding: Encoding.Encoding): Settings = this.encoding(encoding.toString)
 
   /**
    * specify the text encoding.
@@ -267,16 +245,20 @@ trait ImageSettings {
 
   /**
    * Use this type of filter when resizing or distorting an image.
-   * The result implements Filter which allows the definition of expert settings.
+   * The result implements FilterType which allows the definition of expert settings.
    *
    * @see Filter for defining expert settings
    */
-  def filter(filterType: Filter.Filter) = {
-    apply(new ParameterImageAttribue("filter", filterType.toString)) {
-      (source, attrs) =>
-        (new ImageSourceWithSettings(source, attrs) with Filter).asInstanceOf[ImageSource with Filter]
-    }
-  }
+  def filter(filter: Filter) =
+    apply(new ParameterImageAttribue("filter", filter.commands))
+
+  /**
+   * Use this type of filter when resizing or distorting an image.
+   * The result implements FilterType which allows the definition of expert settings.
+   *
+   * @see FilterType for defining expert settings
+   */
+  def filter(filterType: FilterType.FilterType): Settings = filter(Filter(filterType))
 
   /**
    * set the font to use when annotating images with text, or creating labels.
@@ -296,7 +278,7 @@ trait ImageSettings {
   /**
    * Colors within this distance are considered equal.
    */
-  def fuzz(distance: Int): ImageSource = fuzz(Value(distance))
+  def fuzz(distance: Int): Settings = fuzz(Value(distance))
 
   /**
    * Set the preferred size and location of the image.
@@ -416,7 +398,7 @@ trait ImageSettings {
 
   /**
    * JPEG/MIFF/PNG compression level. The value depends on the used image format.
-   * See http://www.imagemagick.org/script/command-line-options.php#quality
+   * See http://www.imagemagick.org/script/settings-line-options.php#quality
    */
   def quality(value: Int) = apply(new ParameterImageAttribue("quality", value.toString))
 
@@ -435,7 +417,7 @@ trait ImageSettings {
    * render vector operations.
    * This useful when saving the result to vector formats such as MVG or SVG.
    */
-  def render: ImageSource = render(true)
+  def render: Settings = render(true)
 
   /**
    * Enable/Disable render vector operations.
@@ -651,68 +633,6 @@ case class Value(value: Int) extends AbsoluteOrPercent {
   def spec = value.toString
 }
 
-object Filter extends Enumeration {
-  type Filter = Value
-
-  val Bartlett, Bessel, Blackman, Bohman, Box, Catrom, Cubic, Gaussian, Hamming, Hanning, Hermite, Kaiser = Value
-  val Lagrange, Lanczos, Mitchell, Parzen, Point, Quadratic, Sinc, Triangle, Welsh = Value
-}
-
-/**
- * You can modify how the filter behaves as it scales your image through the use of these expert settings
- */
-trait Filter extends ImageSettings {
-
-  implicit def buildFilter(source: ImageSource, attributes: Iterable[ImageAttibute]): ImageSource with Filter = {
-    new ImageSourceWithSettings(source, attributes) with Filter
-  }
-
-  /**
-   * Scale the X axis of the filter (and its window). Use > 1.0 for blurry or < 1.0 for sharp.
-   * This should only be used with Gaussian and Gaussian-like filters simple filters, or you may not get the expected results.
-   */
-  def blur(factor: Double) = apply(new ParameterImageAttribue("define", "filter:blur=" + factor))
-
-  /**
-   * Set the filter support radius.
-   * Defines how large the filter should be and thus directly defines how slow the filtered resampling process is.
-   */
-  def support(radius: Int) = apply(new ParameterImageAttribue("define", "filter:support=" + radius))
-
-  /**
-   * Set the number of lobes to use for the Sinc/Bessel filter.
-   * This an alternative way of specifying the 'support' range of the filter,
-   * that is designed to be more suited to windowed filters, especially when used for image distorts.
-   */
-  def lobes(count: Int) = apply(new ParameterImageAttribue("define", "filter:lobes=" + count))
-
-  def bspline(factor: Double) = apply(new ParameterImageAttribue("define", "filter:b=" + factor))
-
-  /**
-   * Redefine the values used for cubic filters such as Cubic, Catrom, Mitchel, and Hermite,
-   * as well as the Parzen Sinc windowing function. If only one of the values are defined,
-   * the other is set so as to generate a 'Keys' type cubic filter.
-   */
-  def cubic(factor: Double) = apply(new ParameterImageAttribue("define", "filter:c=" + factor))
-
-  /**
-   * Use this function directly as the scaling filter.
-   * This will allow you to directly use a windowing filter such as Blackman,
-   * rather than as its normal usage as a windowing function for 'Sinc' or 'Bessel' functions.
-   * If defined, no windowing function is used, unless the following expert setting is also defined.
-   */
-  def filter(function: String) = apply(new ParameterImageAttribue("define", "filter:filter=" + function))
-
-  /**
-   * The IIR (infinite impulse response) filters Bessel and Sinc are windowed
-   * (brought down to zero over the defined support range) with the given filter.
-   * This allows you to specify a filter function that is not normally used as a windowing function,
-   * such as Box, (which effectively turns off the windowing function), to window a Sinc,
-   * or the function the previous setting defined.
-   */
-  def window(function: String) = apply(new ParameterImageAttribue("define", "filter:window=" + function))
-}
-
 object Endian extends Enumeration {
   type Endian = Value
 
@@ -764,51 +684,20 @@ object Direction extends Enumeration {
   val leftToRight, ltr = Value("left-to-right")
 }
 
-/**
- * mixin trait for delay definitions
- */
-trait Delay extends ImageSettings {
+object Delay extends Enumeration {
+  type Delay = Value
 
-  def ticks: Int
-
-  def ticksPerSeconds: Int = 100
-
-  /**
-   * current attributes without the current delay definition.
-   */
-  def delayAttributes: Iterable[ImageAttibute]
-
-  /**
-   * change the image delay only if its current value exceeds the given delay
-   */
-  def onlyIfLowerThanCurrent =
-    withAttributes(delayAttributes).apply(new DelayAttibute(ticks, ticksPerSeconds, Some(">")))
-
-  /**
-   * change the image delay only if its current value exceeds the given delay
-   */
-  def > = onlyIfLowerThanCurrent
-
-  /**
-   *  changes the image delay only if current value is less than the given delay
-   */
-  def onlyIfHigherThanCurrent =
-    withAttributes(delayAttributes).apply(new DelayAttibute(ticks, ticksPerSeconds, Some("<")))
-
-  /**
-   *  changes the image delay only if current value is less than the given delay
-   */
-  def < = onlyIfHigherThanCurrent
+  val <, > = Value
 }
 
 class DelayAttibute(ticks: Int,
                     ticksPerSeconds: Int = 100,
-                    condition: Option[String] = None)
+                    condition: Option[Delay.Delay] = None)
   extends ImageAttibute("delay") {
 
   override def commands = {
     val cond = condition match {
-      case Some(c) => c
+      case Some(c) => c.toString
       case _ => ""
     }
     super.commands ::: ticks + (if (ticksPerSeconds == 100) "" else "x" + ticksPerSeconds) + cond :: Nil
@@ -960,17 +849,9 @@ object Alpha extends Enumeration {
   val Background = Value
 }
 
-class ImageSourceWithSettings(override val imageSource: ImageSource,
-                                override val attributes: Iterable[ImageAttibute])
-  extends ImageSource
-  with ImageSettings {
+trait ImageSetting extends HasCommands
 
-  override def writeTo(out: OutputStream) = imageSource.writeTo(out)
-
-  def sourceSpec = imageSource.sourceSpec
-}
-
-class ImageAttibute(val name: String, val activate: Boolean = true) extends HasCommands {
+class ImageAttibute(val name: String, val activate: Boolean = true) extends ImageSetting {
   def commands = ((if (activate) "-" else "+") + name) :: Nil
 }
 
