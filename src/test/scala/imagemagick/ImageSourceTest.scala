@@ -1,8 +1,8 @@
 package org.imagemagick
 
 import org.specs.Specification
-import org.imagemagick.ImageSourceSpec._
 import java.io.File
+import Convert._
 
 /**
  * User: mathias
@@ -17,40 +17,40 @@ class ImageSourceTest extends Specification {
       val source = image(file)
 
       source must notBeNull
-      val (location :: Nil) = source.arguments
+      val (location :: Nil) = apply(file).arguments
       location must_== file.getAbsolutePath
 
       "frame range" in {
-        val (filePathWithFrames :: Nil) = source.frames(0 to 3).arguments
+        val (filePathWithFrames :: Nil) = apply(source.frames(0 to 3)).arguments
         filePathWithFrames must endWith("fruehling.jpg[0-3]")
       }
 
       "frame index" in {
-        val (filePathWithFrames :: Nil) = source.frames(3, 2, 4).arguments
+        val (filePathWithFrames :: Nil) = apply(source.frames(3, 2, 4)).arguments
         filePathWithFrames must endWith("fruehling.jpg[3,2,4]")
       }
 
       "size attribute" in {
-        val (size :: widthHeight :: path :: Nil) = source.size(55, 66).arguments
-        size must_== "-size"
+        val (somesize :: widthHeight :: path :: Nil) = Convert.size(55,66).apply(file).arguments
+        somesize must_== "-size"
         widthHeight must_== "55x66"
         path must_== file.getAbsolutePath
       }
 
       "depth attribute" in {
-        val (depth :: depthValue :: path :: Nil) = source.depth(16).arguments
-        depth must_== "-depth"
+        val (deptharg :: depthValue :: path :: Nil) = depth(16).apply(file).arguments
+        deptharg must_== "-depth"
         depthValue must_== "16"
         path must_== file.getAbsolutePath
       }
 
       "resized" in {
-        val (path :: Nil) = source.resized(width = 100, height = 200).arguments
+        val (path :: other) = apply(source.resized(width = 100, height = 200)).arguments
         path must endWith("fruehling.jpg[100x200]")
       }
 
       "cropped" in {
-        val (path :: Nil) = source.cropped(Geometry(120, 120).offset(10, 5)).arguments
+        val (path :: other) = apply(source.cropped(Geometry(120, 120).offset(10, 5))).arguments
         path must endWith("fruehling.jpg[120x120+10+5]")
       }
     }

@@ -6,45 +6,21 @@ import java.io.{File, OutputStream, InputStream}
 /**
  * identifies a command sequence with a image source
  */
-trait HasSource extends ImageSettings with ImageCommands {
-
-  self =>
-
+trait HasImageSource extends ImageSettings with ImageCommands with ImageSourceSpec {
+  
   type Settings = HasSource
 
-  /**
-   * the image settings defined for this source
-   */
-  def settings: Iterable[HasCommands]
+  def apply(setup: HasCommands): HasSource
 
-  /**
-   * the defined source
-   */
-  def source: ImageSource
+  def apply(image: ImageSource) = apply(image.asInstanceOf[HasCommands])
 
-  def commands = settings ++ List(new HasCommands {
-    def commands = source.sourceSpec :: Nil
-  })
-
-  /**
-   * apply an image setting after the source
-   */
-  def apply(setting: ImageSetting) = new HasSource {
-
-    def settings = self.settings
-
-    override def commands = self.commands ++ (setting :: Nil)
-
-    def source = self.source
-  }
+  def apply(setting: ImageSetting) = apply(setting.asInstanceOf[HasCommands])
 }
 
 /**
- * User: mathias
- * Date: 05.03.11 14:33
- * Time: 14:33
+ * Defines an image source
  */
-trait ImageSource extends HasSource {
+trait ImageSource extends HasCommands {
 
   self =>
 
@@ -52,6 +28,10 @@ trait ImageSource extends HasSource {
    * Plain source specification as it is used in the settings line
    */
   def sourceSpec: String
+
+  def commands: Iterable[String] = commands(sourceSpec)
+
+  def commands(sourceSpec: String): Iterable[String] = sourceSpec :: Nil
 
   /**
    * Write the data as input to the image magic settings via STDIN
@@ -63,27 +43,90 @@ trait ImageSource extends HasSource {
    * faster and less resource intensive crop image as it is read
    */
   def cropped(geometry: ImageGeometry) =
-    apply(List(new HasCommands {
-      def commands = sourceSpec + "[" + geometry.spec + "]" :: Nil
-    }))
+    ParameterizedImageSource(self, geometry = Option(geometry))
 
   /**
    * faster and less resource intensive resize image as it is read
    */
-  def resized(width: Int, height: Int) = cropped(Geometry(width, height))
+  final def resized(width: Int, height: Int) =
+    cropped(Geometry(width, height))
 
-  def apply(otherSettings: Iterable[HasCommands] = Nil): HasSource = new HasSource {
+  /**
+   * define frames of the images to use use <code>frames(0 to 3)</code>
+   */
+  final def frames(range: scala.Range): ParameterizedImageSource =
+    frames(RangeFrames(range))
 
-    override def commands: Iterable[HasCommands] = self.commands ++ otherSettings
-
-    def source = self
-
-    def settings = self.settings
+  /**
+   * define frames of the images to use use <code>frames(3,2,4)</code>
+   */
+  def frames(index: Int, moreIndexes: Int*): ParameterizedImageSource = {
+    val indexes = index :: Option(moreIndexes).getOrElse(Nil).toList
+    frames(CollectionFrames(indexes))
   }
 
+  def frames(frames: Frames) = ParameterizedImageSource(self, frames = Option(frames))
 }
 
-trait ImageSourceSpec extends Commands {
+/**
+ * an image source that is parameterized
+ */
+case class ParameterizedImageSource(origin: ImageSource,
+                                    geometry: Option[ImageGeometry] = None,
+                                    frames: Option[Frames] = None) extends ImageSource {
+
+  def sourceSpec = origin.sourceSpec + (geometry :: frames :: Nil).flatten.map(_.spec).mkString("[", "", "]")
+
+  override def frames(frames: Frames) = ParameterizedImageSource(origin, geometry, Option(frames))
+
+  override def cropped(geometry: ImageGeometry) = ParameterizedImageSource(origin, Option(geometry), frames)
+
+  override def writeTo(out: OutputStream) = origin.writeTo(out)
+
+  override def commands(sourceSpec: String) = origin.commands(sourceSpec)
+}
+
+/**
+ * a frames defintion with explicit frame indexes
+ */
+case class CollectionFrames(indexes: Iterable[Int]) extends Frames {
+  def spec = indexes.mkString(",")
+}
+
+/**
+ * a frames definition with a frame range
+ */
+case class RangeFrames(range: scala.Range) extends Frames {
+
+  def spec = {
+    if (range.step == 1) {
+      range.start + "-" + range.end
+    } else {
+      range.mkString(",")
+    }
+  }
+}
+
+/**
+ * contract for frames
+ */
+trait Frames extends Parameter {
+}
+
+/**
+ * mixin trait which allows the definition of image sources
+ */
+trait ImageSourceSpec {
+
+  /**
+   * this type will be available after an image has been defined
+   */
+  type HasSource <: HasImageSource
+
+  /**
+   * apply the image setting the the list of existing commands.
+   */
+  def apply(image: ImageSource): HasSource
 
   /**
    * Create an image source for a built in pattern.
@@ -93,48 +136,70 @@ trait ImageSourceSpec extends Commands {
     /**
      * define the size for the pattern
      */
-    def size(width: Int, height: Int, offset: Option[Int] = None) =
-      PatternInputSource(commands, pattern).size(width, height, offset)
+    def size(width: Int,
+             height: Int,
+             offset: Option[Int] = None) =
+      PatternInputSource(pattern, width, height, offset)
   }
 
   /**
    * Create an image stream source for the given input stream.
    * Use InputStreamSource#buffered to use the stream source multiple times
    */
-  def image(in: InputStream) = InputStreamSource(commands, in)
+  implicit def image(in: InputStream) =
+    InputStreamSource(in)
 
   /**
    * create an image source for a given file
    */
-  def image(file: File) = FileInputSource(commands, file)
+  implicit def image(file: File) =
+    FileInputSource(file)
 
   /**
    * create an image source for a given file
    */
-  def image(file: String): FileInputSource = image(new File(file))
+  implicit def image(file: String) =
+    FileInputSource(new File(file))
 }
 
-object ImageSourceSpec extends ImageSourceSpec {
-  def commands = Nil
-}
-
-case class PatternInputSource(settings: Iterable[HasCommands], name: String) extends ImageSource {
+/**
+ * defines an input source for a pattern
+ */
+case class PatternInputSource(name: String,
+                              width: Int,
+                              height: Int,
+                              offset: Option[Int] = None) extends ImageSource {
   def sourceSpec = "pattern:" + name
 
-  def source = this
+  /**
+   * we need to prepend the size definition before the pattern spec
+   */
+  override def commands(sourceSpec: String) = {
+    ImageSettings.size(width, height, offset)
+      .commands
+      .map(_.commands)
+      .flatten ++ (sourceSpec :: Nil)
+  }
+
 }
 
+/**
+ * mixin trait for stream based image sources
+ */
 trait StreamSource extends ImageSource {
   def sourceSpec = "-"
 }
 
-case class InputStreamSource(settings: Iterable[HasCommands], input: InputStream) extends StreamSource with ImageSource {
+/**
+ * a stream based image source
+ */
+case class InputStreamSource(input: InputStream) extends StreamSource with ImageSource {
 
   /**
    * Create a buffered stream source which can be used multiple times to read image data from
    * Calling this method immediatly reads the data of the stream and stores it in memory
    */
-  def buffered = ByteArrayInputSource(commands, IOUtils.toByteArray(input))
+  def buffered = ByteArrayInputSource(IOUtils.toByteArray(input))
 
   override def writeTo(output: OutputStream) = {
     assert(input.available > 0, "input stream is either already read or is empty. " +
@@ -145,62 +210,17 @@ case class InputStreamSource(settings: Iterable[HasCommands], input: InputStream
       input.close
     }
   }
-
-  def source = this
 }
 
-case class ByteArrayInputSource(settings: Iterable[HasCommands], bytes: Array[Byte]) extends StreamSource with ImageSource {
+case class ByteArrayInputSource(bytes: Array[Byte]) extends StreamSource with ImageSource {
 
   override def writeTo(output: OutputStream) = {
     IOUtils.write(bytes, output)
   }
-
-  def source = this
 }
 
-case class FileInputSource(settings: Iterable[HasCommands], file: File) extends ImageSource {
-
-  self =>
-
-  def source = self
+case class FileInputSource(file: File) extends ImageSource {
 
   def sourceSpec = file.getAbsolutePath
-
-  /**
-   * define frames of the images to use use <code>frames(0 to 3)</code>
-   */
-  def frames(range: scala.Range) = new ImageSource {
-    nested =>
-
-    def sourceSpec = {
-      if (range.step == 1) {
-        file.getAbsolutePath + "[" + range.start + "-" + range.end + "]"
-      } else {
-        file.getAbsolutePath + range.mkString("[", ",", "]")
-      }
-    }
-
-    def source = nested
-
-    def settings = self.settings
-  }
-
-  /**
-   * define frames of the images to use use <code>frames(3,2,4)</code>
-   */
-  def frames(index: Int, moreIndexes: Int*) = new ImageSource {
-    nested =>
-
-    val indexes: Iterable[Int] = index :: Option(moreIndexes).getOrElse(Nil).toList
-
-    def sourceSpec = {
-      file.getAbsolutePath + indexes.mkString("[", ",", "]")
-    }
-
-    def source = nested
-
-    def settings = self.settings
-  }
-
 }
 

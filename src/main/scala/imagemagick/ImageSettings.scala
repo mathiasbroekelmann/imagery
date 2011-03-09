@@ -19,9 +19,25 @@ trait Commands {
   def arguments = (for(c <- commands) yield c.commands).flatten
 }
 
+object ImageSettings extends ImageSettings {
+
+  type Settings = ImageSettings
+
+  def apply(setting: ImageSetting) = DefaultImageSettings(setting :: Nil)
+
+  def commands = Nil
+}
+
+case class DefaultImageSettings(commands: Iterable[HasCommands]) extends ImageSettings {
+
+  def apply(setting: ImageSetting) = DefaultImageSettings(commands ++ (setting :: Nil))
+
+  type Settings = ImageSettings
+}
+
 trait ImageSettings extends Commands {
 
-  type Settings
+  type Settings <: ImageSettings
 
   /**
    * apply the image setting the the list of existing commands.
@@ -687,7 +703,8 @@ object Direction extends Enumeration {
 object Delay extends Enumeration {
   type Delay = Value
 
-  val <, > = Value
+  val < = Value("<")
+  val > = Value(">")
 }
 
 class DelayAttibute(ticks: Int,

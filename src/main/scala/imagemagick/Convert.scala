@@ -1,49 +1,40 @@
 package org.imagemagick
 
-import java.io.{InputStream, File}
-
 /**
  * User: mathias
  * Date: 07.03.11 20:32
  * Time: 20:32
  */
+trait RequiresImageSource extends ImageSettings with ImageSourceSpec {
+
+  /**
+   * since an image source is required we stay here until we have an image source
+   */
+  type Settings = RequiresImageSource
+
+  type HasSource = HasImageSource
+
+  def commands: Iterable[HasCommands]
+
+  def apply(setting: ImageSetting) = SomeRequiresImageSource(commands ++ (setting :: Nil))
+
+  def apply(image: ImageSource) = SomeHasImageSource(commands ++ (image :: Nil))
+}
+
+case class SomeHasImageSource(commands: Iterable[HasCommands]) extends Commands with HasImageSource {
+
+  type HasSource = HasImageSource
+
+  override def apply(setup: HasCommands) = SomeHasImageSource(commands ++ (setup :: Nil))
+}
 
 trait Setup extends ImageSettings with ImageSourceSpec
 
-trait ImageCommands extends Commands with ImageSettings
+trait ImageCommands
 
-trait Convert extends Setup {
 
-  /**
-   * apply image conversion to the given image file
-   */
-  def apply(file: File) = image(file)
-
-  /**
-   * apply image conversion to the given input image file defined as path
-   */
-  def apply(file: String) = image(file)
-
-  /**
-   * apply image conversion to the given input image file defined as path
-   */
-  def apply(in: InputStream) = image(in)
-}
-
-object Convert extends Convert {
-
-  def apply(setting: ImageSetting) = apply(List(setting))
-
-  def apply(settings: Iterable[ImageSetting] = Nil): Convert = new Convert {
-
-    def apply(setting: ImageSetting) = Convert.apply(settings ++ List(setting))
-
-    type Settings = Convert
-
-    def commands = settings
-  }
-
-  type Settings = Convert
-
+object Convert extends RequiresImageSource {
   def commands = Nil
 }
+
+case class SomeRequiresImageSource(commands: Iterable[HasCommands]) extends RequiresImageSource
