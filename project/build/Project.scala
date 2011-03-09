@@ -56,4 +56,6 @@ class Project(info: ProjectInfo)
   lazy val scalaCheck = "org.scala-tools.testing" % "scalacheck_2.8.1" % "1.8" % "test"
 
   lazy val mockito = "org.mockito" % "mockito-all" % "1.8.5" % "test"
+
+  override def compileOptions = super.compileOptions ++ Seq(Unchecked)
 }
