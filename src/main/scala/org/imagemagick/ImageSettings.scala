@@ -8,17 +8,6 @@ import java.io.{File, OutputStream}
  * Date: 05.03.11 18:34
  * Time: 18:34
  */
-
-trait Commands {
-
-  /**
-   * holds the list of commands to apply.
-   */
-  def commands: Iterable[HasCommands]
-
-  def arguments = (for(c <- commands) yield c.commands).flatten
-}
-
 object ImageSettings extends ImageSettings {
 
   type Settings = ImageSettings
@@ -61,6 +50,11 @@ trait ImageSettings extends Commands {
    * Use #singleFile = false to force each image to be written to separate files
    */
   def adjoin(singleFile: Boolean = true) = apply(new ImageAttibute("adjoin", singleFile))
+
+  /**
+   * Applies the given transformation matrix.
+   */
+  def affine = transform _
 
   /**
    * Applies the given transformation matrix.

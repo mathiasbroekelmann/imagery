@@ -12,6 +12,9 @@ trait RequiresImageSource extends ImageSettings with ImageSourceSpec {
    */
   type Settings = RequiresImageSource
 
+  /**
+   * After getting a source we allow definition of commands
+   */
   type HasSource = HasImageSource
 
   def commands: Iterable[HasCommands]
@@ -21,20 +24,29 @@ trait RequiresImageSource extends ImageSettings with ImageSourceSpec {
   def apply(image: ImageSource) = SomeHasImageSource(commands ++ (image :: Nil))
 }
 
-case class SomeHasImageSource(commands: Iterable[HasCommands]) extends Commands with HasImageSource {
+case class SomeHasImageSource(commands: Iterable[HasCommands]) extends Commands with HasImageSource with Sugar {
+
+  override def apply(setup: HasCommands) = SomeHasImageSource(commands ++ (setup :: Nil))
+
+}
+
+/**
+ * combines different image magic command sequences into a single operation.
+ */
+trait Sugar extends HasImageSource {
 
   type HasSource = HasImageSource
 
-  override def apply(setup: HasCommands) = SomeHasImageSource(commands ++ (setup :: Nil))
+  /**
+   * Surround the image with a border of color.
+   */
+  def border(geometry: ImageGeometry, color: Color): Operators = borderColor(color).border(geometry)
 }
-
-trait Setup extends ImageSettings with ImageSourceSpec
-
-trait ImageCommands
-
 
 object Convert extends RequiresImageSource {
   def commands = Nil
+  
+  def convert = Convert
 }
 
 case class SomeRequiresImageSource(commands: Iterable[HasCommands]) extends RequiresImageSource

@@ -6,15 +6,19 @@ import java.io.{File, OutputStream, InputStream}
 /**
  * identifies a command sequence with a image source
  */
-trait HasImageSource extends ImageSettings with ImageCommands with ImageSourceSpec {
+trait HasImageSource extends ImageSettings with ImageOperators with ImageSourceSpec {
   
   type Settings = HasSource
+
+  type Operators = HasSource
 
   def apply(setup: HasCommands): HasSource
 
   def apply(image: ImageSource) = apply(image.asInstanceOf[HasCommands])
 
   def apply(setting: ImageSetting) = apply(setting.asInstanceOf[HasCommands])
+
+  def apply(operator: ImageOperator) = apply(operator.asInstanceOf[HasCommands])
 }
 
 /**
