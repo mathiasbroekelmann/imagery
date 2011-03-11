@@ -7,7 +7,7 @@ import java.io.{File, OutputStream, InputStream}
  * identifies a command sequence with a image source
  */
 trait HasImageSource extends ImageSettings with ImageOperators with ImageSourceSpec {
-  
+
   type Settings = HasSource
 
   type Operators = HasSource
