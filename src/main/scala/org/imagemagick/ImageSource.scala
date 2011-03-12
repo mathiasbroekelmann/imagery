@@ -6,7 +6,7 @@ import java.io.{File, OutputStream, InputStream}
 /**
  * identifies a command sequence with a image source
  */
-trait HasImageSource extends ImageSettings with ImageOperators with ImageSourceSpec {
+trait HasImageSource extends ImageSettings with ImageOperators with ImageSourceSpec with ImageWriter {
 
   type Settings = HasSource
 
@@ -14,7 +14,7 @@ trait HasImageSource extends ImageSettings with ImageOperators with ImageSourceS
 
   def apply(setup: HasCommands): HasSource
 
-  def apply(image: ImageSource) = apply(image.asInstanceOf[HasCommands])
+  def apply(image: => ImageSource) = apply(image.asInstanceOf[HasCommands])
 
   def apply(setting: ImageSetting) = apply(setting.asInstanceOf[HasCommands])
 
@@ -130,7 +130,7 @@ trait ImageSourceSpec {
   /**
    * apply the image setting the the list of existing commands.
    */
-  def apply(image: ImageSource): HasSource
+  def apply(image: => ImageSource): HasSource
 
   /**
    * Create an image source for a built in pattern.
@@ -203,7 +203,14 @@ case class InputStreamSource(input: InputStream) extends StreamSource with Image
    * Create a buffered stream source which can be used multiple times to read image data from
    * Calling this method immediatly reads the data of the stream and stores it in memory
    */
-  def buffered = ByteArrayInputSource(IOUtils.toByteArray(input))
+  def buffered = {
+    val bytes = try {
+      IOUtils.toByteArray(input)
+    } finally {
+      input.close
+    }
+    ByteArrayInputSource(bytes)
+  }
 
   override def writeTo(output: OutputStream) = {
     assert(input.available > 0, "input stream is either already read or is empty. " +

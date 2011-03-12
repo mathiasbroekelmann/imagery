@@ -131,6 +131,11 @@ trait ImageOperators extends Commands {
    * Cut out one or more rectangular regions of the image.
    */
   def crop(geometry: ImageGeometry) = apply(new ParameterImageOperator("crop", geometry.spec))
+
+  /**
+   * Create a thumbnail of the image.
+   */
+  def thumbnail(geometry: ImageGeometry) = apply(new ParameterImageOperator("thumbnail", geometry.spec))
 }
 
 trait ImageOperator extends HasCommands
