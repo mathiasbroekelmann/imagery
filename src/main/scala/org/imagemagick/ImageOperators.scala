@@ -53,6 +53,11 @@ trait ImageOperators extends Commands {
   }
 
   /**
+   * Automagically orient (rotate) an image created by a digital camera.
+   */
+  def autoOrient = apply(new ParameterImageOperator("auto-orient"))
+
+  /**
    * Force to black all pixels below the threshold given as an absolute integer while leaving all pixels at or above the threshold unchanged.
    */
   def blackThreshold(value: Int) = {
@@ -136,6 +141,19 @@ trait ImageOperators extends Commands {
    * Create a thumbnail of the image.
    */
   def thumbnail(geometry: ImageGeometry) = apply(new ParameterImageOperator("thumbnail", geometry.spec))
+
+  /**
+   * Reduce image noise and reduce detail levels.
+   */
+  def unsharp(radius: Int) = apply(new ParameterImageOperator("unsharp", radius.toString))
+
+  /**
+   * Reduce image noise and reduce detail levels.
+   */
+  def unsharp(radius: Int, sigma: Double, threshold: Option[Int] = None) =
+    apply(new ParameterImageOperator("unsharp", radius + "x" + sigma + threshold.map("+" + _).getOrElse("")))
+
+  def extent(geometry: ImageGeometry) = apply(new ParameterImageOperator("extent", geometry.spec))
 }
 
 trait ImageOperator extends HasCommands

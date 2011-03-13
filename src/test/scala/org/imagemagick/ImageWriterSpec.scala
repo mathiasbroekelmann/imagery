@@ -28,7 +28,7 @@ class ImageWriterSpec extends Specification {
       val outFile = new File("target/stream.png")
       outFile.delete
       outFile mustNot exist
-      val stream = image(new FileInputStream("src/test/resources/fruehling.jpg")).buffered
+      val stream = image(new FileInputStream("src/test/resources/fruehling.jpg")).buffered 
       convert(stream) thumbnail(Geometry(100, 100)) writeAs("png") to(new FileOutputStream("target/stream.png"))
       outFile must exist
     }

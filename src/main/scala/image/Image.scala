@@ -9,13 +9,12 @@ import java.io.{BufferedInputStream, File}
 trait Image {
   def blob: Blob
 
-  def dimension: Option[Dimension] = blob.read {
+  lazy val dimension: Option[Dimension] = blob.read {
     in =>
       for (dim <- ImageMetadataReader.readMetadata(new BufferedInputStream(in)).dimension) yield
         Dimension(dim.width, dim.height)
   }.getOrElse(None)
 }
 
-case class Dimension(
-                      val width: Int,
-                      val height: Int)
+case class Dimension(val width: Int,
+                     val height: Int)

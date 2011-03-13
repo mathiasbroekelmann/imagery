@@ -4,24 +4,6 @@ import org.apache.commons.io.IOUtils
 import java.io.{File, OutputStream, InputStream}
 
 /**
- * identifies a command sequence with a image source
- */
-trait HasImageSource extends ImageSettings with ImageOperators with ImageSourceSpec with ImageWriter {
-
-  type Settings = HasSource
-
-  type Operators = HasSource
-
-  def apply(setup: HasCommands): HasSource
-
-  def apply(image: => ImageSource) = apply(image.asInstanceOf[HasCommands])
-
-  def apply(setting: ImageSetting) = apply(setting.asInstanceOf[HasCommands])
-
-  def apply(operator: ImageOperator) = apply(operator.asInstanceOf[HasCommands])
-}
-
-/**
  * Defines an image source
  */
 trait ImageSource extends HasCommands {
@@ -42,12 +24,19 @@ trait ImageSource extends HasCommands {
    * By default this function does nothing.
    */
   def writeTo(out: OutputStream) = {}
+}
+
+trait ConfigurableImageSource extends ImageSource {
 
   /**
-   * faster and less resource intensive crop image as it is read
+   * crop image as it is read in which is faster and less resource intensive
    */
-  def cropped(geometry: ImageGeometry) =
-    ParameterizedImageSource(self, geometry = Option(geometry))
+  def cropped(geometry: ImageGeometry): ImageSource
+
+  /**
+   * apply the given frames to this image source to the returned image source
+   */
+  def frames(frames: Frames): ImageSource
 
   /**
    * faster and less resource intensive resize image as it is read
@@ -58,18 +47,16 @@ trait ImageSource extends HasCommands {
   /**
    * define frames of the images to use use <code>frames(0 to 3)</code>
    */
-  final def frames(range: scala.Range): ParameterizedImageSource =
+  final def frames(range: scala.Range): ImageSource =
     frames(RangeFrames(range))
 
   /**
    * define frames of the images to use use <code>frames(3,2,4)</code>
    */
-  def frames(index: Int, moreIndexes: Int*): ParameterizedImageSource = {
+  def frames(index: Int, moreIndexes: Int*): ImageSource = {
     val indexes = index :: Option(moreIndexes).getOrElse(Nil).toList
     frames(CollectionFrames(indexes))
   }
-
-  def frames(frames: Frames) = ParameterizedImageSource(self, frames = Option(frames))
 }
 
 /**
@@ -77,7 +64,7 @@ trait ImageSource extends HasCommands {
  */
 case class ParameterizedImageSource(origin: ImageSource,
                                     geometry: Option[ImageGeometry] = None,
-                                    frames: Option[Frames] = None) extends ImageSource {
+                                    frames: Option[Frames] = None) extends ConfigurableImageSource {
 
   def sourceSpec = origin.sourceSpec + (geometry :: frames :: Nil).flatten.map(_.spec).mkString("[", "", "]")
 
@@ -114,8 +101,7 @@ case class RangeFrames(range: scala.Range) extends Frames {
 /**
  * contract for frames
  */
-trait Frames extends Parameter {
-}
+trait Frames extends Parameter
 
 /**
  * mixin trait which allows the definition of image sources
@@ -142,7 +128,7 @@ trait ImageSourceSpec {
      */
     def size(width: Int,
              height: Int,
-             offset: Option[Int] = None) =
+             offset: Option[Int] = None): ImageSource =
       PatternInputSource(pattern, width, height, offset)
   }
 
@@ -150,20 +136,44 @@ trait ImageSourceSpec {
    * Create an image stream source for the given input stream.
    * Use InputStreamSource#buffered to use the stream source multiple times
    */
-  implicit def image(in: InputStream) =
+  implicit def image(in: InputStream): StreamSource =
     InputStreamSource(in)
+
+  /**
+   * Create an image stream source for the given byte array.
+   */
+  implicit def image(bytes: Array[Byte]): StreamSource =
+    ByteArrayImageSource(bytes)
 
   /**
    * create an image source for a given file
    */
-  implicit def image(file: File) =
+  implicit def image(file: File): LocationImageSource =
     FileInputSource(file)
 
   /**
    * create an image source for a given file
    */
-  implicit def image(file: String) =
-    FileInputSource(new File(file))
+  implicit def image(file: String): LocationImageSource =
+    image(new File(file))
+}
+
+/**
+ * identifies a command sequence with a image source
+ */
+trait HasImageSource extends ImageSettings with ImageOperators with ImageSourceSpec with ImageWriter {
+
+  type Settings = HasSource
+
+  type Operators = HasSource
+
+  def apply(setup: HasCommands): HasSource
+
+  def apply(image: => ImageSource) = apply(image.asInstanceOf[HasCommands])
+
+  def apply(setting: ImageSetting) = apply(setting.asInstanceOf[HasCommands])
+
+  def apply(operator: ImageOperator) = apply(operator.asInstanceOf[HasCommands])
 }
 
 /**
@@ -191,7 +201,16 @@ case class PatternInputSource(name: String,
  * mixin trait for stream based image sources
  */
 trait StreamSource extends ImageSource {
+
+  self =>
+
   def sourceSpec = "-"
+
+  /**
+   * Create a buffered stream source which can be used multiple times to read image data from
+   * Calling this method immediatly reads the data of the stream and stores it in memory
+   */
+  def buffered: StreamSource
 }
 
 /**
@@ -203,13 +222,13 @@ case class InputStreamSource(input: InputStream) extends StreamSource with Image
    * Create a buffered stream source which can be used multiple times to read image data from
    * Calling this method immediatly reads the data of the stream and stores it in memory
    */
-  def buffered = {
+  def buffered: StreamSource = {
     val bytes = try {
       IOUtils.toByteArray(input)
     } finally {
       input.close
     }
-    ByteArrayInputSource(bytes)
+    ByteArrayImageSource(bytes)
   }
 
   override def writeTo(output: OutputStream) = {
@@ -223,14 +242,34 @@ case class InputStreamSource(input: InputStream) extends StreamSource with Image
   }
 }
 
-case class ByteArrayInputSource(bytes: Array[Byte]) extends StreamSource with ImageSource {
+case class ByteArrayImageSource(bytes: Array[Byte]) extends StreamSource with ImageSource {
 
   override def writeTo(output: OutputStream) = {
     IOUtils.write(bytes, output)
   }
+
+  def buffered = this
 }
 
-case class FileInputSource(file: File) extends ImageSource {
+trait LocationImageSource extends ConfigurableImageSource {
+
+  self =>
+
+  /**
+   * crop image as it is read in which is faster and less resource intensive
+   */
+  def cropped(geometry: ImageGeometry): ImageSource =
+    ParameterizedImageSource(self, geometry = Option(geometry))
+
+  /**
+   * apply the given frames to this image source to the returned image source
+   */
+  def frames(frames: Frames): ImageSource =
+    ParameterizedImageSource(self, frames = Option(frames))
+
+}
+
+case class FileInputSource(file: File) extends ImageSource with LocationImageSource {
 
   def sourceSpec = file.getAbsolutePath
 }

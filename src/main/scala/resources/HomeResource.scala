@@ -19,96 +19,154 @@ package org.mbr.imagery.resources
 
 import javax.ws.rs._
 
-import com.sun.jersey.api.view.ImplicitProduces
 import core._
-import core.Response.ResponseBuilder
+import core.Response.Status
 import java.net.URI
 import org.mbr.imagery.image.Image
 import java.io.{OutputStream, File}
-import org.apache.commons.io.IOUtils
-import org.mbr.imagery.blob.{FileBlob, UriBlob}
-import image.ImageResizer
+import org.mbr.imagery.blob.{UriBlob}
+import java.util.Date
+import org.imagemagick.{Gravity, Color, Geometry, Convert}
+import com.sun.jersey.api.view.{Viewable, ImplicitProduces}
 
 /**
  * The root resource bean
  */
 @Path("/")
-@Produces(Array("text/html;qs=5"))
-class HomeResource {
+class HomeResource extends Album {
 
-  def base = new File("/media/fotos/2010")
+  def directory = new File("/home/mathias/Bilder/Fotos/2010/unsorted")
 
   @Context
   val uriInfo: UriInfo = uriInfo
-
-  lazy val dashboard = new Dashboard {
-    val location = base
-  }
-
-  case class HtmlImage(location: URI, val width: Option[Int] = None, val height: Option[Int] = None)
-    extends Image {
-
-    val nestedSrc = location.toString.stripPrefix(base.toURI.toString)
-
-    def withWidth(w: Int) = new HtmlImage(location, Some(w), height)
-
-    def withHeight(h: Int) = new HtmlImage(location, width, Some(h))
-
-    def src = {
-      val builder = UriBuilder.fromPath(uriInfo.getPath).path("/pic/{src}")
-      val wb = width match {
-        case Some(w) => builder.queryParam("w", w.asInstanceOf[Object])
-        case _ => builder
-      }
-      val hb = height match {
-        case Some(h) => builder.queryParam("h", h.asInstanceOf[Object])
-        case _ => builder
-      }
-      hb.buildFromEncoded(nestedSrc)
-    }
-
-    def loc = location
-
-    def blob = new UriBlob {}
-  }
-
-  def pictures: Iterable[HtmlImage] = {
-    dashboard.pictures(HtmlImage(_))
-  }
-
-  def picture(imageFile: File,
-              width: Option[Int],
-              height: Option[Int]): Response = {
-    if (imageFile.exists) {
-      Response.ok(new StreamingOutput {
-        def write(out: OutputStream) = {
-          val image = new FileBlob {
-            def file = imageFile
-          }.read(ImageResizer.resize(_, width, height))
-        }
-      }).build
-    } else {
-      Response.status(404).build
-    }
-  }
-  @GET
-  @Path("pic/{src:.*}")
-  @Produces(Array("image/*"))
-  def picture(@PathParam("src") src: String,
-              @QueryParam("w") width: Int = 0,
-              @QueryParam("h") height: Int = 0): Response = {
-    picture(new File(base, src), if(width > 0) Some(width) else None, if(height > 0) Some(height) else None)
-  }
-
 }
 
-trait HtmlImage extends Image {
+object Album {
+  val thumbnailType = "png"
+}
 
-  def loc: URI
+/**
+ * sub resource of an album
+ */
+@ImplicitProduces(Array("text/html;qs=5"))
+trait Album {
 
-  def src: URI
+  self =>
 
-  def blob = new UriBlob {
-    override lazy val uri = loc
+  import Album._
+
+  def directory: File
+
+  def uriInfo: UriInfo
+
+  @Path("{album}")
+  def album(@PathParam("album") album: String) = {
+    val albumDir = new File(directory, album)
+    if (albumDir.exists) {
+      new NestedAlbum(albumDir, uriInfo)
+    } else {
+      throw AlbumNotFoundException(album)
+    }
   }
+
+  @GET
+  def album = new Viewable("index", self, classOf[Album])
+
+  @GET
+  @Path("{name}-thumbnail.png")
+  def thumbnail(@PathParam("name") name: String,
+                @Context request: Request) = {
+    val file = new File(directory, name)
+    val width, height = 150
+    if (!file.exists) {
+      Response.status(Status.NOT_FOUND).build
+    } else {
+      val lastModified = new Date(file.lastModified)
+      Option(request.evaluatePreconditions(lastModified)).getOrElse {
+        Response.ok(new StreamingOutput {
+          def write(out: OutputStream) = {
+            import Convert._
+            val size = Geometry(width, height)
+            convert(image(file))
+              .autoOrient
+              .thumbnail(Geometry(width * height).area)
+              .background(Color.transparent)
+              .gravity(Gravity.Center)
+              .extent(size)
+              .unsharp(0, .5)
+              .writeAs(thumbnailType).to(out)
+          }
+        }, "image/" + thumbnailType).lastModified(new Date(file.lastModified))
+      }.build
+    }
+  }
+
+  lazy val dashboard = new Dashboard {
+    val location = directory
+  }
+
+  def pictures: Iterable[ImageTeaser] = {
+
+    val baseLocation = directory.toURI.toString
+
+    def asteaser(uri: URI): ImageTeaser = new ImageTeaser {
+
+      val baseRelativeLocation = uri.toString.stripPrefix(baseLocation)
+
+      def uriByTeaser(teaser: String): URI = {
+        UriBuilder.fromPath("/" + uriInfo.getPath).path(baseRelativeLocation + "-" + teaser).build()
+      }
+
+      def original = new HtmlImage {
+        def src = uriByTeaser("original.jpg")
+      }
+
+      def popup = new HtmlImage {
+        def src = uriByTeaser("popup.jpg")
+      }
+
+      def thumbnail = new HtmlImage {
+        def src = uriByTeaser("thumbnail." + thumbnailType)
+      }
+    }
+
+    dashboard.pictures(asteaser)
+  }
+}
+
+class NestedAlbum(val directory: File,
+                  val uriInfo: UriInfo) extends Album
+
+case class AlbumNotFoundException(message: String) extends WebApplicationException(Status.NOT_FOUND)
+
+/**
+ * defines an image shown in the web page
+ */
+trait ImageTeaser {
+
+  /**
+   * the numbnail of the image
+   */
+  def thumbnail: HtmlImage
+
+  /**
+   * the popup image
+   */
+  def popup: HtmlImage
+
+  /**
+   * the original image
+   */
+  def original: HtmlImage
+}
+
+/**
+ * an image which is rendered as an html img tag
+ */
+trait HtmlImage {
+
+  /**
+   * src attribute value of the html image
+   */
+  def src: URI
 }

@@ -32,15 +32,11 @@ trait ImageWriter extends Commands with Execution with Logged {
   def write: WriteImage[ExecutionResult] = {
 
     def executeWithInputStream[A](execute: (Iterable[String], Option[OutputStream => Unit]) => A): A = {
-      // traverse commands
-      // if streamsource found and use it as stdin
-      // write all remaining input sources to a temp file and use that file as file reference
-
       /**
        * process the remaining commands without an inputstream before.
        * arguments of traversed commands are provided for execution
        */
-      def withoutStream(remainingCommands: Iterable[HasCommands], arguments: Iterable[String]): A = {
+      def withoutStream(remainingCommands: Iterable[HasCommands], arguments: Iterable[String] = Nil): A = {
         remainingCommands.headOption match {
           case None => execute(arguments, None)
           case Some(stream: StreamSource) => withStream(remainingCommands.tail, arguments ++ stream.commands, stream.writeTo(_))
@@ -91,7 +87,7 @@ trait ImageWriter extends Commands with Execution with Logged {
         }
       }
 
-      withoutStream(commands, Nil)
+      withoutStream(commands)
     }
 
     new WriteOperation(
