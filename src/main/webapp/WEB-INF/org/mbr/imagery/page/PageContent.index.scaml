@@ -1,0 +1,36 @@
+-@ import val it : Object
+- val page = org.mbr.imagery.page.Page(it)
+- response.setContentType("text/html")
+
+!!! XML
+!!! 5 
+%html(lang="en")
+  %head
+    %meta(http-equiv="Content-Type" content="text/html; charset=utf-8")
+    %meta(name="description" content="description goes here")
+    %meta(name="keywords" content="keywords,goes,here")
+    %meta(name="author" content="Your Name")
+
+    %link(href={uri("/css/style.css")} rel="stylesheet" type="text/css")
+
+    %title
+      = view(it, "title")
+  %body
+    #container
+      #top
+        .wrapper
+          %h1
+            Header
+      #sidebar
+        .wrapper
+          = view(it, "sidebar")
+      #marginal
+        .wrapper
+          %p
+            Marginal. Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nonummy nibh euismod tincidunt ut.
+      #content
+        .wrapper
+          = view(it, "content")
+      #footer
+        .wrapper
+          Footer

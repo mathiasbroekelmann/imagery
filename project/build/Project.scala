@@ -27,16 +27,20 @@ class Project(info: ProjectInfo)
 
   lazy val mavenLocal = "Local Maven Repository" at "file://"+Path.userHome+"/.m2/repository"
 
+  lazy val maven_central = "Maven Central" at
+           "http://repo1.maven.org/maven2"
   lazy val fusesource_snapshot_repo = "FuseSource Snapshots" at
            "http://repo.fusesource.com/nexus/content/repositories/snapshots"
   lazy val java_net_repo = "Java.net Repository" at
            "http://download.java.net/maven/2"
   
-  lazy val commonsIo        = "commons-io" % "commons-io" % "1.4" withSources()
-  lazy val commonsLang        = "commons-lang" % "commons-lang" % "2.5"
+  lazy val commonsIo        = "commons-io" % "commons-io" % "2.0.1" withSources()
+  lazy val commonsLang        = "commons-lang" % "commons-lang" % "2.6" withSources()
 
-  lazy val scalate_guice    = "org.fusesource.scalate" % "scalate-guice"     % "1.4.0" withSources()
-  lazy val servlet          = "javax.servlet"          % "servlet-api"       % "2.5" 
+  lazy val scalate_guice    = "org.fusesource.scalate" % "scalate-guice"     % "1.5.0-SNAPSHOT" withSources()
+  lazy val scalate_core    = "org.fusesource.scalate" % "scalate-core"     % "1.5.0-SNAPSHOT" withSources()
+  lazy val jersey_server    = "com.sun.jersey" % "jersey-server" % "1.5" withSources()
+  lazy val servlet          = "javax.servlet"          % "servlet-api"       % "2.5"
   lazy val logback          = "ch.qos.logback"         % "logback-classic"   % "0.9.26"
 
   // to get jetty-run working in sbt

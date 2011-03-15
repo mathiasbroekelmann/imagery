@@ -28,12 +28,13 @@ import org.mbr.imagery.blob.{UriBlob}
 import java.util.Date
 import org.imagemagick.{Gravity, Color, Geometry, Convert}
 import com.sun.jersey.api.view.{Viewable, ImplicitProduces}
+import org.mbr.imagery.page.{Defaults, PageContent}
 
 /**
  * The root resource bean
  */
 @Path("/")
-class HomeResource extends Album {
+class HomeResource extends PageContent with Album with Defaults {
 
   def directory = new File("/home/mathias/Bilder/Fotos/2010/unsorted")
 
@@ -70,7 +71,7 @@ trait Album {
   }
 
   @GET
-  def album = new Viewable("index", self, classOf[Album])
+  def album = new Viewable("index", self, self.getClass)
 
   @GET
   @Path("{name}-thumbnail.png")
@@ -135,7 +136,7 @@ trait Album {
 }
 
 class NestedAlbum(val directory: File,
-                  val uriInfo: UriInfo) extends Album
+                  val uriInfo: UriInfo) extends PageContent with Album with Defaults
 
 case class AlbumNotFoundException(message: String) extends WebApplicationException(Status.NOT_FOUND)
 
