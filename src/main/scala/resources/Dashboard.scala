@@ -68,10 +68,10 @@ trait Dashboard {
         def accept(dir: File, name: String) = accept(new File(dir, name))
       })).map(_.toStream).getOrElse(Stream.empty).map(file)
 
-      val pictures = for (file <- imageFiles; image <- image(file)) yield image
-      val nested = for (dir <- nestedDirectories) yield images(dir)
+      def pictures = for (file <- imageFiles; image <- image(file)) yield image
+      def nested = for (dir <- nestedDirectories) yield images(dir)
 
-      pictures ++ nested.flatten
+      pictures
     }
 
     location match {

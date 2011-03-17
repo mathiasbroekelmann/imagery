@@ -23,12 +23,13 @@ import core._
 import core.Response.Status
 import java.net.URI
 import org.mbr.imagery.image.Image
-import java.io.{OutputStream, File}
 import org.mbr.imagery.blob.{UriBlob}
 import java.util.Date
 import org.imagemagick.{Gravity, Color, Geometry, Convert}
 import com.sun.jersey.api.view.{Viewable, ImplicitProduces}
 import org.mbr.imagery.page.{Defaults, PageContent}
+import org.mbr.imagery.sidebar.{SidebarElement, Sidebar}
+import java.io.{FileFilter, OutputStream, File}
 
 /**
  * The root resource bean
@@ -36,10 +37,14 @@ import org.mbr.imagery.page.{Defaults, PageContent}
 @Path("/")
 class HomeResource extends PageContent with Album with Defaults {
 
-  def directory = new File("/home/mathias/Bilder/Fotos/2010/unsorted")
+  def directory = new File("/home/mathias/Bilder/Fotos")
 
   @Context
   val uriInfo: UriInfo = uriInfo
+
+  val parent = None
+
+  val path = "/"
 }
 
 object Album {
@@ -50,21 +55,27 @@ object Album {
  * sub resource of an album
  */
 @ImplicitProduces(Array("text/html;qs=5"))
-trait Album {
+trait Album extends SidebarElement {
 
   self =>
 
+  type Element = Album
+
   import Album._
+
+  def path: String
 
   def directory: File
 
   def uriInfo: UriInfo
 
+  def name: String = directory.getName
+
   @Path("{album}")
   def album(@PathParam("album") album: String) = {
     val albumDir = new File(directory, album)
     if (albumDir.exists) {
-      new NestedAlbum(albumDir, uriInfo)
+      new NestedAlbum(Some(self), albumDir, uriInfo)
     } else {
       throw AlbumNotFoundException(album)
     }
@@ -115,7 +126,7 @@ trait Album {
       val baseRelativeLocation = uri.toString.stripPrefix(baseLocation)
 
       def uriByTeaser(teaser: String): URI = {
-        UriBuilder.fromPath("/" + uriInfo.getPath).path(baseRelativeLocation + "-" + teaser).build()
+        UriBuilder.fromPath(path).path(baseRelativeLocation + "-" + teaser).build()
       }
 
       def original = new HtmlImage {
@@ -133,10 +144,28 @@ trait Album {
 
     dashboard.pictures(asteaser)
   }
+
+  def children = {
+    def childDirs = Option(directory.listFiles(new FileFilter {
+      def accept(pathname: File) = pathname.isDirectory
+    })).map(_.toStream).getOrElse(Stream.empty)
+
+    for (dir <- childDirs) yield {
+      new NestedAlbum(Some(self), dir, uriInfo)
+    }
+  }
 }
 
-class NestedAlbum(val directory: File,
-                  val uriInfo: UriInfo) extends PageContent with Album with Defaults
+class NestedAlbum(val parent: Option[Album],
+                  val directory: File,
+                  val uriInfo: UriInfo)
+  extends PageContent with Album with Defaults {
+
+  def path = parent match {
+    case Some(album) => if (album.path.endsWith("/")) album.path + directory.getName else album.path + "/" + directory.getName
+    case None => "/" + directory.getName
+  }
+}
 
 case class AlbumNotFoundException(message: String) extends WebApplicationException(Status.NOT_FOUND)
 
