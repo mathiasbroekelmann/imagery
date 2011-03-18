@@ -1,7 +1,7 @@
 -@ import val it : Navigation
 = view(element, "link")
--# if (open && !children.isEmpty)
-%ul
-  - for(child <- children)
-    %li
-      = view(child, "itemInSidebar")
+- if (!children.isEmpty && it.open)
+  %ul
+    - for(child <- children)
+      %li
+        = view(child, "itemInSidebar")
