@@ -58,7 +58,7 @@ p {
 
 #sidebar ul {
   list-style-type: none;
-  padding: 0;
+  padding: 0 0px 5px 5px;
 }
 
 #sidebar li.open ul {
