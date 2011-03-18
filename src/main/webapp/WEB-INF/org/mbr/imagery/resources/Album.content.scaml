@@ -1,6 +1,5 @@
 -@ import val it : Album
-
 %ul.images
-  - for(img <- it.pictures.take(50))
+  - for(img <- it.pictures.take(20))
     %li
       %img{:src => {img.thumbnail.src}}
