@@ -21,7 +21,6 @@ import javax.ws.rs._
 
 import core._
 import core.Response.Status
-import java.net.URI
 import org.mbr.imagery.image.Image
 import org.mbr.imagery.blob.{UriBlob}
 import java.util.Date
@@ -30,6 +29,7 @@ import com.sun.jersey.api.view.{Viewable, ImplicitProduces}
 import org.mbr.imagery.page.{Defaults, PageContent}
 import org.mbr.imagery.sidebar.{SidebarElement, Sidebar}
 import java.io.{FileFilter, OutputStream, File}
+import java.net.{URLEncoder, URI}
 
 /**
  * The root resource bean
@@ -37,10 +37,7 @@ import java.io.{FileFilter, OutputStream, File}
 @Path("/")
 class HomeResource extends PageContent with Album with Defaults {
 
-  def directory = new File("/home/mathias/Bilder/Fotos")
-
-  @Context
-  val uriInfo: UriInfo = uriInfo
+  def directory = new File("/media/fotos")
 
   val parent = None
 
@@ -65,9 +62,9 @@ trait Album extends SidebarElement {
 
   def path: String
 
-  def directory: File
+  def link = UriBuilder.fromPath(path).build().toString
 
-  def uriInfo: UriInfo
+  def directory: File
 
   def name: String = directory.getName
 
@@ -75,7 +72,7 @@ trait Album extends SidebarElement {
   def album(@PathParam("album") album: String) = {
     val albumDir = new File(directory, album)
     if (albumDir.exists) {
-      new NestedAlbum(Some(self), albumDir, uriInfo)
+      NestedAlbum(Some(self), albumDir)
     } else {
       throw AlbumNotFoundException(album)
     }
@@ -147,18 +144,17 @@ trait Album extends SidebarElement {
 
   def children = {
     def childDirs = Option(directory.listFiles(new FileFilter {
-      def accept(pathname: File) = pathname.isDirectory
+      def accept(pathname: File) = pathname.isDirectory && !pathname.getName.startsWith(".")
     })).map(_.toStream).getOrElse(Stream.empty)
 
     for (dir <- childDirs) yield {
-      new NestedAlbum(Some(self), dir, uriInfo)
+      NestedAlbum(Some(self), dir)
     }
   }
 }
 
-class NestedAlbum(val parent: Option[Album],
-                  val directory: File,
-                  val uriInfo: UriInfo)
+case class NestedAlbum(parent: Option[Album],
+                       directory: File)
   extends PageContent with Album with Defaults {
 
   def path = parent match {
