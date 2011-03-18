@@ -31,10 +31,15 @@ trait SidebarElement {
 /**
  * a navigation node builds up an hierarchical navigation structure
  */
-case class Navigation(element: SidebarElement,
-                      selected: Boolean,
-                      open: Boolean,
-                      children: Iterable[Navigation])
+trait Navigation {
+  def element: SidebarElement
+
+  def selected: Boolean
+
+  def open: Boolean
+
+  def children: Iterable[Navigation]
+}
 
 object Sidebar {
 
@@ -42,29 +47,33 @@ object Sidebar {
     new Sidebar {
       lazy val navigation = {
         // determine path to root
-        def parentPath(element: SidebarElement): List[SidebarElement] = {
-          element.parent match {
-            case None => List(element)
-            case Some(parent) => parentPath(parent) :+ element
-          }
+        def parentPath(element: SidebarElement, parent: Option[SidebarElement]): List[SidebarElement] = {
+          (parent match {
+            case None => Nil
+            case Some(p) => parentPath(p, p.parent)
+          }) :+ element
         }
 
-        val path = parentPath(selectedElement)
+        val path = parentPath(selectedElement, selectedElement.parent)
 
         def childsOf(element: SidebarElement): Iterable[Navigation] = {
-          for(child <- element.children.toStream) yield {
-            Navigation(element = child,
-              selected = child == selectedElement,
-              open = path.find(_ == element).isDefined,
-              children = childsOf(child))
+          for (child <- element.children.toStream) yield {
+            new Navigation {
+              val element = child
+              lazy val selected = child == selectedElement
+              lazy val open = path.find(_ == child).isDefined
+              lazy val children = childsOf(child)
+            }
           }
         }
 
         val root = path.head
-        Navigation(element = root,
-          selected = root == selectedElement,
-          open = true,
-          children = childsOf(root))
+        new Navigation {
+          val element = root
+          lazy val selected = root == selectedElement
+          lazy val open = true
+          lazy val children = childsOf(root)
+        }
       }
     }
   }
