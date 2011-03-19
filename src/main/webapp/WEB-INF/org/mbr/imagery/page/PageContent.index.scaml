@@ -11,7 +11,13 @@
     %meta(name="keywords" content="keywords,goes,here")
     %meta(name="author" content="Your Name")
 
-    %link(href={uri("/css/style.css")} rel="stylesheet" type="text/css")
+    %link(href={uri("/css/style.css")} rel="stylesheet" type="text/css" media="screen" charset="utf-8")
+    %link(href={uri("/js/fancybox/jquery.fancybox-1.3.4.css")} rel="stylesheet" type="text/css" media="screen" charset="utf-8")
+
+    %script(src={uri("/js/jquery-1.4.4.min.js")} type="text/javascript" charset="utf-8")
+    %script(src={uri("/js/fancybox/jquery.fancybox-1.3.4.pack.js")} type="text/javascript" charset="utf-8")
+    %script(src={uri("/js/fancybox/jquery.easing-1.3.pack.js")} type="text/javascript" charset="utf-8")
+    %script(src={uri("/js/fancybox/jquery.mousewheel-3.0.4.pack.js")} type="text/javascript" charset="utf-8")
 
     %title
       = view(it, "title")

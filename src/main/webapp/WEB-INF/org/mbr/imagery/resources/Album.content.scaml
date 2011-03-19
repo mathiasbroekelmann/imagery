@@ -1,3 +1,7 @@
+:javascript
+  $(document).ready(function(){
+    $("a.gallery_image").fancybox();
+  });
 %ul.images
   - for(img <- pictures.take(100))
     %li
