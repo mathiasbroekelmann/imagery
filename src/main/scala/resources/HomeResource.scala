@@ -221,5 +221,5 @@ trait HtmlImage {
   /**
    * src attribute value of the html image
    */
-  def src: URI
+  def src: String
 }
