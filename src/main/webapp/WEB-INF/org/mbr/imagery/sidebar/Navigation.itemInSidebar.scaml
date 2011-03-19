@@ -1,6 +1,6 @@
--@ import val it : Navigation
-= view(element, "link")
-- if (!children.isEmpty && it.open)
+%div(class={(if (open && !children.isEmpty) "open" else "") + " " + (if (selected) "selected" else "")})
+  = view(element, "link")
+- if (!children.isEmpty && open)
   %ul
     - for(child <- children)
       %li

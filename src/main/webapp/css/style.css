@@ -66,9 +66,11 @@ p {
   padding: 0 0px 5px 5px;
 }
 
-#sidebar li.open ul {
-  padding: 0 1em 0;
+#sidebar .selected {
+  background: lightgrey;
+  display: block;
 }
+
 
 #marginal {
   float: right;
