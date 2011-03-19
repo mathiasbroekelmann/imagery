@@ -1,5 +1,5 @@
--@ import val it : Album
 %ul.images
   - for(img <- it.pictures.take(20))
     %li
-      %img{:src => {img.thumbnail.src}}
+      %a(href={uri(img.lightbox.src)} class="gallery_image" rel="gallery")
+        %img(src={uri(img.thumbnail.src)})

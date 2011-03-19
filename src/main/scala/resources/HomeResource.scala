@@ -30,6 +30,7 @@ import org.mbr.imagery.page.{Defaults, PageContent}
 import org.mbr.imagery.sidebar.{SidebarElement, Sidebar}
 import java.io.{FileFilter, OutputStream, File}
 import java.net.{URLEncoder, URI}
+import Convert._
 
 /**
  * The root resource bean
@@ -46,6 +47,7 @@ class HomeResource extends PageContent with Album with Defaults {
 
 object Album {
   val thumbnailType = "png"
+  val lightboxType = "jpg"
 }
 
 /**
@@ -82,7 +84,7 @@ trait Album extends SidebarElement {
   def album = new Viewable("index", self, self.getClass)
 
   @GET
-  @Path("{name}-thumbnail.png")
+  @Path("{name}-thumbnail.{extension}")
   def thumbnail(@PathParam("name") name: String,
                 @Context request: Request) = {
     val file = new File(directory, name)
@@ -94,7 +96,6 @@ trait Album extends SidebarElement {
       Option(request.evaluatePreconditions(lastModified)).getOrElse {
         Response.ok(new StreamingOutput {
           def write(out: OutputStream) = {
-            import Convert._
             val size = Geometry(width, height)
             convert(image(file))
               .autoOrient
@@ -106,6 +107,31 @@ trait Album extends SidebarElement {
               .writeAs(thumbnailType).to(out)
           }
         }, "image/" + thumbnailType).lastModified(new Date(file.lastModified))
+      }.build
+    }
+  }
+
+  @GET
+  @Path("{name}-lightbox.{extension}")
+  def lightbox(@PathParam("name") name: String,
+               @Context request: Request) = {
+    val file = new File(directory, name)
+    val width = 800
+    val height = 600
+    if (!file.exists) {
+      Response.status(Status.NOT_FOUND).build
+    } else {
+      val lastModified = new Date(file.lastModified)
+      Option(request.evaluatePreconditions(lastModified)).getOrElse {
+        Response.ok(new StreamingOutput {
+          def write(out: OutputStream) = {
+            convert(image(file))
+              .autoOrient
+              .thumbnail(Geometry(width, height))
+              .unsharp(0, .5)
+              .writeAs(lightboxType).to(out)
+          }
+        }, "image/" + lightboxType).lastModified(new Date(file.lastModified))
       }.build
     }
   }
@@ -122,21 +148,22 @@ trait Album extends SidebarElement {
 
       val baseRelativeLocation = uri.toString.stripPrefix(baseLocation)
 
-      def uriByTeaser(teaser: String): URI = {
-        UriBuilder.fromPath(path).path(baseRelativeLocation + "-" + teaser).build()
+      def uriByTeaser(teaser: String): String = {
+        UriBuilder.fromPath(path).path(baseRelativeLocation + "-" + teaser).build().toString
       }
 
-      def original = new HtmlImage {
+      lazy val original = new HtmlImage {
         def src = uriByTeaser("original.jpg")
       }
 
-      def popup = new HtmlImage {
-        def src = uriByTeaser("popup.jpg")
-      }
-
-      def thumbnail = new HtmlImage {
+      lazy val thumbnail = new HtmlImage {
         def src = uriByTeaser("thumbnail." + thumbnailType)
       }
+
+      lazy val lightbox = new HtmlImage {
+        def src = uriByTeaser("lightbox." + lightboxType)
+      }
+
     }
 
     dashboard.pictures(asteaser)
@@ -171,14 +198,14 @@ case class AlbumNotFoundException(message: String) extends WebApplicationExcepti
 trait ImageTeaser {
 
   /**
-   * the numbnail of the image
+   * the thumbnail image
    */
   def thumbnail: HtmlImage
 
   /**
-   * the popup image
+   * the lightbox image
    */
-  def popup: HtmlImage
+  def lightbox: HtmlImage
 
   /**
    * the original image

@@ -25,6 +25,11 @@ body, html, table, tr, td, tbody {
     vertical-align: top;
 }
 
+a {
+    color: #336699;
+    text-decoration: none;
+}
+
 p {
   margin: 0 0 1em 0;
 }
