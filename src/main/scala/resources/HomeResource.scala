@@ -23,13 +23,13 @@ import core._
 import core.Response.Status
 import org.mbr.imagery.image.Image
 import org.mbr.imagery.blob.{UriBlob}
-import java.util.Date
 import org.imagemagick.{Gravity, Color, Geometry, Convert}
 import com.sun.jersey.api.view.{Viewable, ImplicitProduces}
 import org.mbr.imagery.page.{Defaults, PageContent}
 import org.mbr.imagery.sidebar.{SidebarElement, Sidebar}
 import java.io.{FileFilter, OutputStream, File}
 import java.net.{URLEncoder, URI}
+import java.util.Date
 import Convert._
 
 /**
@@ -164,9 +164,10 @@ trait Album extends SidebarElement {
         def src = uriByTeaser("lightbox." + lightboxType)
       }
 
+      lazy val lastModified: Date = new Date(uri.toURL.openConnection.getLastModified)
     }
 
-    dashboard.pictures(asteaser)
+    dashboard.pictures(asteaser).toSeq.sortBy(_.lastModified.getTime)
   }
 
   def children = {
@@ -211,6 +212,11 @@ trait ImageTeaser {
    * the original image
    */
   def original: HtmlImage
+
+  /**
+   * the last modified date
+   */
+  def lastModified: Date
 }
 
 /**
