@@ -175,7 +175,7 @@ trait Album extends SidebarElement {
       def accept(pathname: File) = pathname.isDirectory && !pathname.getName.startsWith(".")
     })).map(_.toStream).getOrElse(Stream.empty)
 
-    for (dir <- childDirs) yield {
+    for (dir <- childDirs.sortBy(_.getName)) yield {
       NestedAlbum(Some(self), dir)
     }
   }
