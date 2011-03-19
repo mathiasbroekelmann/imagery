@@ -1,9 +1,10 @@
 package org.imagemagick
 
 import collection.JavaConversions._
-import java.io.{InputStream, OutputStream}
 import org.apache.commons.io.IOUtils
 import util.logging.{Logged, ConsoleLogger}
+import java.util.concurrent.{Callable, Executors}
+import java.io.{BufferedOutputStream, BufferedInputStream, InputStream, OutputStream}
 
 /**
  * User: mathias
@@ -77,7 +78,7 @@ trait Execution extends Logged {
     val commands = command :: arguments.toList
     log("executing " + commands.mkString(" "))
     val process: Process = new ProcessBuilder(commands).start
-    val outStream = process.getOutputStream
+    val outStream = new BufferedOutputStream(process.getOutputStream)
     try {
       for (input <- in) {
         input(outStream)
@@ -85,7 +86,24 @@ trait Execution extends Logged {
     } finally {
       outStream.close
     }
+
+    val readOutput = for (output <- out) yield {
+      val executor = Executors.newSingleThreadExecutor
+      executor.submit(new Runnable {
+        def run = {
+          val inStream = new BufferedInputStream(process.getInputStream)
+          try {
+            output(inStream)
+          } finally {
+            inStream.close
+            executor.shutdown
+          }
+        }
+      })
+    }
+
     val result = process.waitFor
+
     val errStream = process.getErrorStream
     try {
       for (someErr <- err) {
@@ -102,14 +120,11 @@ trait Execution extends Logged {
       }
       throw new RuntimeException("Result code " + result + " by executing: " + commands + ": " + msg)
     }
-    val inStream = process.getInputStream
-    try {
-      for (output <- out) {
-        output(inStream)
-      }
-    } finally {
-      inStream.close
+
+    for(output <- readOutput) {
+      output.get
     }
+
     executionResult
   }
 }
