@@ -1,5 +1,5 @@
 %ul.images
-  - for(img <- it.pictures.take(20))
+  - for(img <- pictures.take(100))
     %li
       %a(href={uri(img.lightbox.src)} class="gallery_image" rel="gallery")
         %img(src={uri(img.thumbnail.src)})
