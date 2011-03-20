@@ -62,4 +62,6 @@ class Project(info: ProjectInfo)
   lazy val mockito = "org.mockito" % "mockito-all" % "1.8.5" % "test"
 
   override def compileOptions = super.compileOptions ++ Seq(Unchecked)
+
+  override def webappClasspath = super.webappClasspath +++ buildCompilerJar
 }
