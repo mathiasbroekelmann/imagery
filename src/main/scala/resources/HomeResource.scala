@@ -21,15 +21,14 @@ import javax.ws.rs._
 
 import core._
 import core.Response.Status
-import org.mbr.imagery.image.Image
-import org.mbr.imagery.blob.{UriBlob}
 import org.imagemagick.{Gravity, Color, Geometry, Convert}
 import com.sun.jersey.api.view.{Viewable, ImplicitProduces}
 import org.mbr.imagery.page.{Defaults, PageContent}
 import org.mbr.imagery.sidebar.{SidebarElement, Sidebar}
 import java.io.{FileFilter, OutputStream, File}
-import java.net.{URLEncoder, URI}
 import java.util.Date
+import image.ResourceCache
+import java.net.{URI}
 import Convert._
 
 /**
@@ -96,15 +95,17 @@ trait Album extends SidebarElement {
       Option(request.evaluatePreconditions(lastModified)).getOrElse {
         Response.ok(new StreamingOutput {
           def write(out: OutputStream) = {
-            val size = Geometry(width, height)
-            convert(image(file))
-              .autoOrient
-              .thumbnail(Geometry(width * height).area)
-              .background(Color.transparent)
-              .gravity(Gravity.Center)
-              .extent(size)
-              .unsharp(0, .5)
-              .writeAs(thumbnailType).to(out)
+            ResourceCache.cached(file.toURI.toURL, "thumbnail") { cachedOut =>
+              val size = Geometry(width, height)
+              convert(image(file))
+                .autoOrient
+                .thumbnail(Geometry(width * height).area)
+                .background(Color.transparent)
+                .gravity(Gravity.Center)
+                .extent(size)
+                .unsharp(0, .5)
+                .writeAs(thumbnailType).to(cachedOut)
+            } write(out)
           }
         }, "image/" + thumbnailType).lastModified(new Date(file.lastModified))
       }.build
@@ -125,11 +126,13 @@ trait Album extends SidebarElement {
       Option(request.evaluatePreconditions(lastModified)).getOrElse {
         Response.ok(new StreamingOutput {
           def write(out: OutputStream) = {
+            ResourceCache.cached(file.toURI.toURL, "lightbox") { cachedOut =>
             convert(image(file))
               .autoOrient
               .thumbnail(Geometry(width, height))
               .unsharp(0, .5)
-              .writeAs(lightboxType).to(out)
+              .writeAs(lightboxType).to(cachedOut)
+            } write(out)
           }
         }, "image/" + lightboxType).lastModified(new Date(file.lastModified))
       }.build
