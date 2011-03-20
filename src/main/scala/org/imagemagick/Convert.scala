@@ -5,6 +5,7 @@ import org.apache.commons.io.IOUtils
 import util.logging.{Logged, ConsoleLogger}
 import java.util.concurrent.{Callable, Executors}
 import java.io.{BufferedOutputStream, BufferedInputStream, InputStream, OutputStream}
+import org.apache.commons.io.input.CountingInputStream
 
 /**
  * User: mathias
@@ -87,42 +88,53 @@ trait Execution extends Logged {
       outStream.close
     }
 
-    val readOutput = for (output <- out) yield {
+    val execution = {
       val executor = Executors.newSingleThreadExecutor
-      executor.submit(new Runnable {
-        def run = {
-          val inStream = new BufferedInputStream(process.getInputStream)
-          try {
-            output(inStream)
-          } finally {
-            inStream.close
-            executor.shutdown
-          }
+      executor.submit(new Callable[Int] {
+        def call = {
+          val code = process.waitFor
+          executor.shutdown
+          code
         }
       })
     }
 
-    val result = process.waitFor
+    for (output <- out) {
+      val inStream = new CountingInputStream(new BufferedInputStream(process.getInputStream))
+      try {
+        output(inStream)
+      } finally {
+        log("read " + inStream.getByteCount + " bytes from stdout")
+        inStream.close
+      }
+    }
+
+    val resultCode = execution.get
 
     val errStream = process.getErrorStream
-    try {
-      for (someErr <- err) {
-        someErr(errStream)
+    err match {
+      case Some(e) => {
+        try {
+          e(errStream)
+        } finally {
+          errStream.close
+        }
       }
-    } finally {
-      errStream.close
+      case _ =>
     }
 
-    if (result != 0) {
+    if (resultCode != 0) {
       val msg = err match {
-        case None => IOUtils.readLines(process.getErrorStream)
+        case None => {
+          try {
+            IOUtils.readLines(errStream)
+          } finally {
+            errStream.close
+          }
+        }
         case _ => "details where provided as error stream"
       }
-      throw new RuntimeException("Result code " + result + " by executing: " + commands + ": " + msg)
-    }
-
-    for(output <- readOutput) {
-      output.get
+      throw new RuntimeException("Result code " + resultCode + " by executing: " + commands + ": " + msg)
     }
 
     executionResult
