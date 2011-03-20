@@ -116,8 +116,8 @@ trait Album extends SidebarElement {
   def lightbox(@PathParam("name") name: String,
                @Context request: Request) = {
     val file = new File(directory, name)
-    val width = 800
-    val height = 600
+    val width = 1027
+    val height = 768
     if (!file.exists) {
       Response.status(Status.NOT_FOUND).build
     } else {
