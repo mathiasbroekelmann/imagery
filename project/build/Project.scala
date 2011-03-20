@@ -15,41 +15,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import sbt._
 import org.fusesource.scalate.sbt._
 import de.element34.sbteclipsify._
 
-class Project(info: ProjectInfo) 
-  extends DefaultWebProject(info) 
-//  with PrecompilerWebProject 
-  with Eclipsify 
+class Project(info: ProjectInfo)
+  extends DefaultWebProject(info)
+  //  with PrecompilerWebProject
+  with Eclipsify
   with IdeaProject {
 
-  lazy val mavenLocal = "Local Maven Repository" at "file://"+Path.userHome+"/.m2/repository"
+  lazy val mavenLocal = "Local Maven Repository" at "file://" + Path.userHome + "/.m2/repository"
 
   lazy val maven_central = "Maven Central" at
-           "http://repo1.maven.org/maven2"
+    "http://repo1.maven.org/maven2"
   lazy val fusesource_snapshot_repo = "FuseSource Snapshots" at
-           "http://repo.fusesource.com/nexus/content/repositories/snapshots"
+    "http://repo.fusesource.com/nexus/content/repositories/snapshots"
   lazy val java_net_repo = "Java.net Repository" at
-           "http://download.java.net/maven/2"
-  
-  lazy val commonsIo        = "commons-io" % "commons-io" % "2.0.1" withSources()
-  lazy val commonsLang        = "commons-lang" % "commons-lang" % "2.6" withSources()
+    "http://download.java.net/maven/2"
 
-  lazy val scalate_guice    = "org.fusesource.scalate" % "scalate-guice"     % "1.4.0" withSources()
-  lazy val scalate_core    = "org.fusesource.scalate" % "scalate-core"     % "1.4.0" withSources()
-  lazy val jersey_server    = "com.sun.jersey" % "jersey-server" % "1.5" withSources()
-  lazy val servlet          = "javax.servlet"          % "servlet-api"       % "2.5"
-  lazy val logback          = "ch.qos.logback"         % "logback-classic"   % "0.9.26"
+  lazy val commonsIo = "commons-io" % "commons-io" % "2.0.1" withSources ()
+  lazy val commonsLang = "commons-lang" % "commons-lang" % "2.6" withSources ()
+
+  lazy val scalate_guice = "org.fusesource.scalate" % "scalate-guice" % "1.4.0"
+  lazy val scalate_core = "org.fusesource.scalate" % "scalate-core" % "1.4.0"
+  lazy val jersey_server = "com.sun.jersey" % "jersey-server" % "1.5"
+  lazy val servlet = "javax.servlet" % "servlet-api" % "2.5"
+  lazy val logback = "ch.qos.logback" % "logback-classic" % "0.9.26"
 
   // to get jetty-run working in sbt
-  lazy val jetty_webapp     = "org.eclipse.jetty"      % "jetty-webapp"     % "7.0.2.RC0" % "test"
-  lazy val scalateTest      = "org.fusesource.scalate" % "scalate-test"     % "1.4.0" % "test"
+  lazy val jetty_webapp = "org.eclipse.jetty" % "jetty-webapp" % "7.0.2.RC0" % "test"
+  lazy val scalateTest = "org.fusesource.scalate" % "scalate-test" % "1.4.0" % "test"
 
-  lazy val imageMetadata    = "com.kenai.nbpwr" % "com-drew-metadata" % "2.4.0-beta-1" from "http://www.drewnoakes.com/drewnoakes.com/code/exif/releases/metadata-extractor-2.4.0-beta-1.jar"
+  lazy val imageMetadata = "com.kenai.nbpwr" % "com-drew-metadata" % "2.4.0-beta-1" from "http://www.drewnoakes.com/drewnoakes.com/code/exif/releases/metadata-extractor-2.4.0-beta-1.jar"
 
-  lazy val jodaDateTime     = "joda-time" % "joda-time" % "1.6.2" withSources
+  lazy val jodaDateTime = "joda-time" % "joda-time" % "1.6.2"
 
   lazy val squeryl = "org.squeryl" % "squeryl_2.8.1" % "0.9.4-RC3"
 
