@@ -104,4 +104,23 @@ ul.images {
 
 ul.images li {
   display: inline;
+  float: left;
+}
+
+.preview a {
+  display: block;
+}
+
+.preview {
+  width: 200px;
+}
+
+.preview a.crop-image {
+  background-image: url(../images/icons/crop-image.gif);
+  width: 21px;
+  height: 20px;
+}
+
+.preview a.crop-image span {
+  display: none;
 }

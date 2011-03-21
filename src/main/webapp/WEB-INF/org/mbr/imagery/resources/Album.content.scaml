@@ -3,7 +3,6 @@
     $("a.gallery_image").fancybox();
   });
 %ul.images
-  - for(img <- pictures.take(100))
+  - for(image <- pictures.take(100))
     %li
-      %a(href={uri(img.lightbox.src)} class="gallery_image" rel="gallery")
-        %img(src={uri(img.thumbnail.src)})
+      = view(image, "preview")
