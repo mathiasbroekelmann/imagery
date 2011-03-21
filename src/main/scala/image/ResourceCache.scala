@@ -45,7 +45,7 @@ class FileResourceCache(val baseDir: File) extends ResourceCache {
     // use a 2 level hierarchy to reduce file count in a directory
     val cachedir = new File(new File(baseDir, md5.take(2)), md5.drop(2).take(2))
     
-    val cachedFile = new File(cachedir, id)
+    val cachedFile = new File(cachedir, md5 + "-" + id)
     if(!mayUse(cachedFile)) {
       cachedir.mkdirs
       val output = new BufferedOutputStream(new FileOutputStream(cachedFile))
