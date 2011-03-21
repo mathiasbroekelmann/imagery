@@ -120,7 +120,7 @@ trait ImageSettings extends Commands {
    *
    * The default border color is #DFDFDF, this shade of gray.
    */
-  def borderColor(color: Color) = apply(new ParameterImageAttribue("border-color", color.spec))
+  def borderColor(color: Color) = apply(new ParameterImageAttribue("bordercolor", color.spec))
 
   /**
    * The caption can contain special format characters listed in the Format and Print Image Properties.
