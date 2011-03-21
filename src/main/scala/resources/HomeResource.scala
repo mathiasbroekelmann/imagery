@@ -34,7 +34,7 @@ import Convert._
 /**
  * The root resource bean
  */
-@Path("/")
+@Path("/album")
 class HomeResource extends PageContent with Album with Defaults {
 
   def directory = new File("/media/fotos")
