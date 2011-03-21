@@ -95,17 +95,20 @@ trait Album extends SidebarElement {
       Option(request.evaluatePreconditions(lastModified)).getOrElse {
         Response.ok(new StreamingOutput {
           def write(out: OutputStream) = {
-            ResourceCache.cached(file.toURI.toURL, "thumbnail") { cachedOut =>
-              val size = Geometry(width, height)
-              convert(image(file))
-                .autoOrient
-                .thumbnail(Geometry(width * height).area)
-                .background(Color.transparent)
-                .gravity(Gravity.Center)
-                .extent(size)
-                .unsharp(0, .5)
-                .writeAs(thumbnailType).to(cachedOut)
-            } write(out)
+            ResourceCache.cached(file.toURI.toURL, "thumbnail") {
+              cachedOut =>
+                val size = Geometry(width, height)
+                convert.define(jpegSize(Geometry(width * 4, height * 4)))
+                  .apply(image(file))
+                  .autoOrient
+                  .thumbnail(Geometry(width * 2 * height * 2).area)
+                  .borderColor(Color("snow"))
+                  .border(Geometry(5, 5))
+                  .background(Color("black"))
+                  .polaroid(0)
+                  .resize(Geometry(50.0))
+                  .writeAs(thumbnailType).to(cachedOut)
+            } write (out)
           }
         }, "image/" + thumbnailType).lastModified(new Date(file.lastModified))
       }.build
