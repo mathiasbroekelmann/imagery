@@ -63,7 +63,7 @@ trait Album extends SidebarElement {
 
   def path: String
 
-  def link = UriBuilder.fromPath(path).build().toString
+  def link = UriBuilder.fromResource(classOf[HomeResource]).path(path).build().toString
 
   def directory: File
 
@@ -152,7 +152,7 @@ trait Album extends SidebarElement {
       val baseRelativeLocation = uri.toString.stripPrefix(baseLocation)
 
       def uriByTeaser(teaser: String): String = {
-        UriBuilder.fromPath(path).path(baseRelativeLocation + "-" + teaser).build().toString
+        UriBuilder.fromResource(classOf[HomeResource]).path(path).path(baseRelativeLocation + "-" + teaser).build().toString
       }
 
       lazy val original = new HtmlImage {
