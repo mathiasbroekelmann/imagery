@@ -159,7 +159,7 @@ trait ImageSettings extends Commands {
   /**
    * TODO: add specific global settings generally used to control coders and image processing operations.
    */
-  def define(settings: Definitions) = this
+  def define(settings: Definitions): Settings = apply(settings)
 
   /**
    * display the next image after pausing.
@@ -718,36 +718,40 @@ class DelayAttibute(ticks: Int,
 /**
  * TODO
  */
-trait Definitions {
+trait Definitions extends ImageSetting {
 
-  def apply()
+  /**
+   * apply the image setting the the list of existing commands.
+   * function is used to create the result of the apply function.
+   */
+  def apply(setting: ImageSetting): Definitions
 
   /**
    * remove all existing definitions
    */
-  def none: Definitions
+  //def none: Definitions
 
   /**
    * Set the display range to the minimum and maximum pixel values for the DCM image format.
    */
-  def dcmDisplayRangeReset: Definitions
+  def dcmDisplayRangeReset: Definitions = this
 
   /**
    * Set the specify the layout engine for the DOT image format (e.g. neato).
    */
-  def dotLayoutEngine(value: String): Definitions
+  def dotLayoutEngine(value: String): Definitions = this
 
   /**
    * Restrict the maximum JPEG file size, for example 400000 bytes.
    */
-  def jpegExtend(bytes: Int): Definitions
+  def jpegExtend(bytes: Int): Definitions = this
 
   /**
    * Set the size hint of a JPEG image, for example, 128x128.
    * It is most useful for increasing performance and reducing the memory requirements when reducing the size of a
    * large JPEG image.
    */
-  def jpegSize(geometry: ImageGeometry): Definitions
+  def jpegSize(geometry: ImageGeometry): Definitions = apply(new ParameterImageAttribue("define", "jpeg:size=" + geometry.spec))
 
   /**
    * Specify the compression factor to use while writing JPEG-2000 files.
@@ -756,12 +760,12 @@ trait Definitions {
    * If defined, this value overrides the quality setting.
    * A quality setting of 75 results in a rate value of 0.06641.
    */
-  def jp2Rate(value: Double): Definitions
+  def jp2Rate(value: Double): Definitions = this
 
   /**
    * turn playback caching off for streaming MNG.
    */
-  def mngNeedCacheoff: Definitions
+  def mngNeedCacheoff: Definitions = this
 
   /**
    * desired bit-depth and color-type for PNG output.
@@ -777,7 +781,7 @@ trait Definitions {
    * reduce the image quality prior to using the PNG encoder. Note that in indexed PNG files, "bit-depth" refers to
    * the number of bits per index, which can be 1, 2, 4, or 8. In such files, the color samples always have 8-bit depth.
    */
-  def pngBitDepth(depth: Int): Definitions
+  def pngBitDepth(depth: Int): Definitions = this
 
 
 }

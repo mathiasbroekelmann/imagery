@@ -181,6 +181,21 @@ class ConvertWithInputSource(val commands: Iterable[HasCommands]) extends Conver
 }
 
 
-object Convert extends ConvertRequiresImageSource(Nil) with ConsoleLogger {
-  def convert = Convert
+object Convert extends ImageSourceSpec with Definitions {
+
+  def convert: RequiresImageSource = new ConvertRequiresImageSource(Nil) with ConsoleLogger
+
+  def apply(setting: ImageSetting) = AppliedDefinitions(setting :: Nil)
+
+  def commands = Nil
+
+  type HasSource = ConvertWithInputSource
+
+  def apply(image: => ImageSource) = new ConvertWithInputSource(commands ++ (image :: Nil)) with ConsoleLogger
+}
+
+case class AppliedDefinitions(definitions: Iterable[HasCommands]) extends Definitions {
+  override def apply(definition: ImageSetting) = AppliedDefinitions(definitions ++ (definition :: Nil))
+
+  def commands: Iterable[String] = for (definition <- definitions; cmd <- definition.commands) yield cmd
 }
