@@ -126,13 +126,16 @@ trait Album extends SidebarElement {
       Option(request.evaluatePreconditions(lastModified)).getOrElse {
         Response.ok(new StreamingOutput {
           def write(out: OutputStream) = {
-            ResourceCache.cached(file.toURI.toURL, "lightbox") { cachedOut =>
-            convert(image(file))
-              .autoOrient
-              .thumbnail(Geometry(width, height))
-              .unsharp(0, .5)
-              .writeAs(lightboxType).to(cachedOut)
-            } write(out)
+            ResourceCache.cached(file.toURI.toURL, "lightbox") {
+              cachedOut =>
+                val size = Geometry(width, height)
+                convert.define(jpegSize(Geometry(width * 2, height * 2)))
+                  .apply(image (file))
+                  .autoOrient
+                  .thumbnail(size)
+                  .unsharp(0, .5)
+                  .writeAs(lightboxType).to(cachedOut)
+            } write (out)
           }
         }, "image/" + lightboxType).lastModified(new Date(file.lastModified))
       }.build
