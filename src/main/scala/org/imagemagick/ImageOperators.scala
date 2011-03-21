@@ -154,6 +154,22 @@ trait ImageOperators extends Commands {
     apply(new ParameterImageOperator("unsharp", radius + "x" + sigma + threshold.map("+" + _).getOrElse("")))
 
   def extent(geometry: ImageGeometry) = apply(new ParameterImageOperator("extent", geometry.spec))
+
+  /**
+   * simulate a Polaroid picture. rotate the image at a random angle between -15 and +15 degrees.
+   */
+  def polaroid = apply(new ParameterImageOperator("polaroid", Nil, "+"))
+
+  /**
+   * simulate a Polaroid picture. rotate the image at the given angle in degrees.
+   */
+  def polaroid(angle: Int) = apply(new ParameterImageOperator("polaroid", (angle.toString) :: Nil))
+
+  /**
+   * Resize an image.
+   */
+  def resize(geometry: ImageGeometry) = apply(new ParameterImageOperator("resize", geometry.spec))
+
 }
 
 trait ImageOperator extends HasCommands
