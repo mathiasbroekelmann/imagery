@@ -1,7 +1,8 @@
 package org.mbr.imagery.resources
 
-import javax.ws.rs.Path
 import org.mbr.imagery.page.PageContent
+import javax.ws.rs.{PathParam, GET, Path}
+import javax.ws.rs.core.{Response, UriBuilder}
 
 /**
  * User: mathias
@@ -9,6 +10,14 @@ import org.mbr.imagery.page.PageContent
  * Time: 23:36
  */
 @Path("/crop")
-class CropImage extends PageContent {
-  
+class CropImageResource extends PageContent {
+
+  @GET
+  @Path("{path:.*}")
+  def show(@PathParam("path") pathToImage: String): Response = {
+    null
+  }
+}
+
+trait CropImage {
 }

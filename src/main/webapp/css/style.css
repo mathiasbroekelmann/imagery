@@ -113,6 +113,7 @@ ul.images li {
 
 .preview {
   width: 200px;
+  height: 230px;
 }
 
 .preview a.crop-image {

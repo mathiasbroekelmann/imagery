@@ -1,35 +1,20 @@
-/**
- * Copyright (C) 2009-2011 the original author or authors.
- * See the notice.md file distributed with this work for additional
- * information regarding copyright ownership.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.mbr.imagery.resources
 
 import javax.ws.rs._
 
 import core._
-import core.Response.Status
+import core.Response.{ResponseBuilder, Status}
 import org.imagemagick.{Gravity, Color, Geometry, Convert}
 import com.sun.jersey.api.view.{Viewable, ImplicitProduces}
 import org.mbr.imagery.page.{Defaults, PageContent}
 import org.mbr.imagery.sidebar.{SidebarElement, Sidebar}
-import java.io.{FileFilter, OutputStream, File}
 import java.util.Date
 import image.ResourceCache
 import java.net.{URI}
 import Convert._
+import java.io.{InputStream, FileFilter, OutputStream, File}
+import org.mbr.imagery.image.{Image, StoredImage, ImageStore}
+import org.mbr.imagery.blob.FileBlob
 
 /**
  * The root resource bean
@@ -37,11 +22,13 @@ import Convert._
 @Path("/album")
 class HomeResource extends PageContent with Album with Defaults {
 
-  def directory = new File("/media/fotos")
-
   val parent = None
 
   val path = "/"
+
+  def storeUri = URI.create("/")
+
+  def location = new File("/media/fotos")
 }
 
 object Album {
@@ -53,159 +40,160 @@ object Album {
  * sub resource of an album
  */
 @ImplicitProduces(Array("text/html;qs=5"))
-trait Album extends SidebarElement {
+trait Album extends SidebarElement with ImageStore {
 
   self =>
 
   type Element = Album
 
+  type Store = Album
+
+  type Image = ImageTeaser
+
   import Album._
 
-  def path: String
+  def link = UriBuilder.fromResource(classOf[HomeResource]).path(storeUri.toString).build().toString
 
-  def link = UriBuilder.fromResource(classOf[HomeResource]).path(path).build().toString
+  protected def nestedImageStore(name: String) = NestedAlbum(self, name)
 
-  def directory: File
-
-  def name: String = directory.getName
+  protected def storedFileImage(file: File, storeUri: URI): ImageTeaser = {
+    val absoluteUri = UriBuilder.fromUri(self.storeUri).path(storeUri.toString).build()
+    FileImageTeaser(file, absoluteUri)
+  }
 
   @Path("{album}")
   def album(@PathParam("album") album: String) = {
-    val albumDir = new File(directory, album)
-    if (albumDir.exists) {
-      NestedAlbum(Some(self), albumDir)
-    } else {
-      throw AlbumNotFoundException(album)
+    childStore(album) match {
+      case Some(store) => store
+      case _ => throw AlbumNotFoundException(album)
     }
   }
 
   @GET
   def album = new Viewable("index", self, self.getClass)
 
+  def derivedImageResponse[A](imageName: String,
+                              request: Request,
+                              derivation: String,
+                              format: String,
+                              create: (InputStream, OutputStream) => A): ResponseBuilder = {
+    println("requesting image: " + imageName)
+
+    def found(storedImage: StoredImage) = {
+
+      println("found image: " + storedImage)
+
+      def respondWithContent = {
+        val response = Response.ok(new StreamingOutput {
+          def write(out: OutputStream) = {
+            ResourceCache.cached(storedImage, derivation) {
+              cachedOut => storedImage.read(create(_, cachedOut))
+            } write (out)
+          }
+        }, "image/" + format)
+
+        storedImage.lastModified match {
+          case Some(time) => response.lastModified(new Date(time))
+          case _ => response
+        }
+      }
+
+      storedImage.lastModified match {
+        case Some(time) => Option(request.evaluatePreconditions(new Date(time))).getOrElse(respondWithContent)
+        case _ => respondWithContent
+      }
+    }
+
+    load(URI.create(imageName)) match {
+      case Some(image) => found(image)
+      case _ => Response.status(Status.NOT_FOUND)
+    }
+  }
+
   @GET
   @Path("{name}-thumbnail.{extension}")
   def thumbnail(@PathParam("name") name: String,
-                @Context request: Request) = {
-    val file = new File(directory, name)
-    val width, height = 150
-    if (!file.exists) {
-      Response.status(Status.NOT_FOUND).build
-    } else {
-      val lastModified = new Date(file.lastModified)
-      Option(request.evaluatePreconditions(lastModified)).getOrElse {
-        Response.ok(new StreamingOutput {
-          def write(out: OutputStream) = {
-            ResourceCache.cached(file.toURI.toURL, "thumbnail") {
-              cachedOut =>
-                val size = Geometry(width, height)
-                convert.define(jpegSize(Geometry(width * 4, height * 4)))
-                  .apply(image(file))
-                  .autoOrient
-                  .thumbnail(Geometry(width * 2 * height * 2).area)
-                  .borderColor(Color("snow"))
-                  .border(Geometry(5, 5))
-                  .background(Color("black"))
-                  .polaroid(0)
-                  .resize(Geometry(50.0))
-                  .writeAs(thumbnailType).to(cachedOut)
-            } write (out)
-          }
-        }, "image/" + thumbnailType).lastModified(new Date(file.lastModified))
-      }.build
+                @Context request: Request): Response = {
+
+    def createThumbnail(in: InputStream, out: OutputStream) = {
+      println("render thumbnail")
+      val width, height = 150
+      val size = Geometry(width, height)
+      convert.define(jpegSize(Geometry(width * 4, height * 4)))
+        .apply(image(in).buffered)
+        .autoOrient
+        .thumbnail(Geometry(width * 2 * height * 2).area)
+        .borderColor(Color("snow"))
+        .border(Geometry(5, 5))
+        .background(Color("black"))
+        .polaroid(0)
+        .resize(Geometry(50.0))
+        .writeAs(thumbnailType).to(out)
     }
+
+    derivedImageResponse(name, request, "thumbnail", thumbnailType, createThumbnail).build
   }
 
   @GET
   @Path("{name}-lightbox.{extension}")
   def lightbox(@PathParam("name") name: String,
                @Context request: Request) = {
-    val file = new File(directory, name)
-    val width = 1027
-    val height = 768
-    if (!file.exists) {
-      Response.status(Status.NOT_FOUND).build
-    } else {
-      val lastModified = new Date(file.lastModified)
-      Option(request.evaluatePreconditions(lastModified)).getOrElse {
-        Response.ok(new StreamingOutput {
-          def write(out: OutputStream) = {
-            ResourceCache.cached(file.toURI.toURL, "lightbox") {
-              cachedOut =>
-                val size = Geometry(width, height)
-                convert.define(jpegSize(Geometry(width * 2, height * 2)))
-                  .apply(image (file))
-                  .autoOrient
-                  .thumbnail(size)
-                  .unsharp(0, .5)
-                  .writeAs(lightboxType).to(cachedOut)
-            } write (out)
-          }
-        }, "image/" + lightboxType).lastModified(new Date(file.lastModified))
-      }.build
-    }
-  }
 
-  lazy val dashboard = new Dashboard {
-    val location = directory
-  }
+    def createLightbox(in: InputStream, out: OutputStream) = {
+      val width = 1027
+      val height = 768
+      val size = Geometry(width, height)
 
-  def pictures: Iterable[ImageTeaser] = {
-
-    val baseLocation = directory.toURI.toString
-
-    def asteaser(uri: URI): ImageTeaser = new ImageTeaser {
-
-      val baseRelativeLocation = uri.toString.stripPrefix(baseLocation)
-
-      def uriByTeaser(teaser: String): String = {
-        UriBuilder.fromResource(classOf[HomeResource]).path(path).path(baseRelativeLocation + "-" + teaser).build().toString
-      }
-
-      lazy val original = new HtmlImage {
-        def src = uriByTeaser("original.jpg")
-      }
-
-      lazy val thumbnail = new HtmlImage {
-        def src = uriByTeaser("thumbnail." + thumbnailType)
-      }
-
-      lazy val lightbox = new HtmlImage {
-        def src = uriByTeaser("lightbox." + lightboxType)
-      }
-
-      lazy val lastModified: Date = new Date(uri.toURL.openConnection.getLastModified)
+      convert.define(jpegSize(Geometry(width * 2, height * 2)))
+        .apply(image(in).buffered)
+        .autoOrient
+        .thumbnail(size)
+        .unsharp(0, .5)
+        .writeAs(lightboxType).to(out)
     }
 
-    dashboard.pictures(asteaser).toSeq.sortBy(_.lastModified.getTime)
+    derivedImageResponse(name, request, "lightbox", lightboxType, createLightbox).build
   }
 
-  def children = {
-    def childDirs = Option(directory.listFiles(new FileFilter {
-      def accept(pathname: File) = pathname.isDirectory && !pathname.getName.startsWith(".")
-    })).map(_.toStream).getOrElse(Stream.empty)
-
-    for (dir <- childDirs.sortBy(_.getName)) yield {
-      NestedAlbum(Some(self), dir)
-    }
+  override def pictures: Iterable[ImageTeaser] = {
+    super.pictures.toSeq.sortBy(_.lastModified.getOrElse(0L))
   }
+
+  def children = childStores.toSeq.sortBy(_.name)
 }
 
-case class NestedAlbum(parent: Option[Album],
-                       directory: File)
+case class NestedAlbum(someParent: Album,
+                       override val name: String)
   extends PageContent with Album with Defaults {
 
-  def path = parent match {
-    case Some(album) => if (album.path.endsWith("/")) album.path + directory.getName else album.path + "/" + directory.getName
-    case None => "/" + directory.getName
-  }
+  lazy val parent = Some(someParent)
+
+  lazy val storeUri = UriBuilder.fromUri(someParent.storeUri).path(name).build()
+
+  lazy val location = new File(someParent.location, name)
 }
 
 case class AlbumNotFoundException(message: String) extends WebApplicationException(Status.NOT_FOUND)
 
+case class FileImageTeaser(file: File, storeUri: URI) extends FileBlob with ImageTeaser {
+
+  def uriByTeaser(teaser: String): String = {
+    UriBuilder.fromResource(classOf[HomeResource]).path(storeUri + "-" + teaser).build().toString
+  }
+
+  lazy val thumbnail = new HtmlImage {
+    def src = uriByTeaser("thumbnail." + Album.thumbnailType)
+  }
+
+  lazy val lightbox = new HtmlImage {
+    def src = uriByTeaser("lightbox." + Album.lightboxType)
+  }
+}
+
 /**
  * defines an image shown in the web page
  */
-trait ImageTeaser {
+trait ImageTeaser extends StoredImage {
 
   /**
    * the thumbnail image
@@ -216,16 +204,6 @@ trait ImageTeaser {
    * the lightbox image
    */
   def lightbox: HtmlImage
-
-  /**
-   * the original image
-   */
-  def original: HtmlImage
-
-  /**
-   * the last modified date
-   */
-  def lastModified: Date
 }
 
 /**

@@ -13,7 +13,7 @@ import org.mbr.imagery.blob.{FileBlob, Blob}
 
 trait ResourceCache {
 
-  def cached[A](source: URL, id: String)(compute: OutputStream => A): Blob
+  def cached[A](source: Blob, id: String)(compute: OutputStream => A): Blob
 }
 
 trait ResourceComputation extends AnyRef {
@@ -24,22 +24,25 @@ object ResourceCache extends ResourceCache {
 
   lazy val cacheDir = new File(System.getProperty("java.io.tmpdir"), "resourceCache")
 
-  def cached[A](source: URL, id: String)(compute: OutputStream => A) =
+  def cached[A](source: Blob, id: String)(compute: OutputStream => A) =
     new FileResourceCache(cacheDir).cached(source, id)(compute)
 }
 
 class FileResourceCache(val baseDir: File) extends ResourceCache {
 
-  def cached[A](source: URL, id: String)(compute: OutputStream => A) = {
+  def cached[A](source: Blob, id: String)(compute: OutputStream => A) = {
     lazy val md5: String = {
       val digest = MessageDigest.getInstance("MD5")
       digest.reset
       def encode(b: Byte) = java.lang.Integer.toString(b & 0xff, 36)
-      ("" /: digest.digest(source.toString.getBytes("UTF-8"))) (_+ encode(_))
+      ("" /: digest.digest(source.uri.toString.getBytes("UTF-8"))) (_+ encode(_))
     }
 
     def mayUse(cacheFile: File): Boolean = {
-      cacheFile.exists && cacheFile.lastModified > source.openConnection.getLastModified      
+      source.lastModified match {
+        case Some(time) => cacheFile.exists && cacheFile.lastModified > time
+        case _ => false
+      }
     }
 
     // use a 2 level hierarchy to reduce file count in a directory

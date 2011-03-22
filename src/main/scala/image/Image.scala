@@ -6,15 +6,19 @@ import com.drew.imaging.ImageMetadataReader
 import image.metadata.Exif._
 import java.io.{BufferedInputStream, File}
 
-trait Image {
-  def blob: Blob
+trait Image extends Blob {
 
-  lazy val dimension: Option[Dimension] = blob.read {
+  /**
+   * @return Some dimension of the image or None if dimension could not be determined.
+   */
+  lazy val dimension: Option[Dimension] = read {
     in =>
       for (dim <- ImageMetadataReader.readMetadata(new BufferedInputStream(in)).dimension) yield
         Dimension(dim.width, dim.height)
   }.getOrElse(None)
+
+  def width = dimension map(_.width)
+  def height = dimension map(_.height)
 }
 
-case class Dimension(val width: Int,
-                     val height: Int)
+case class Dimension(width: Int, height: Int)

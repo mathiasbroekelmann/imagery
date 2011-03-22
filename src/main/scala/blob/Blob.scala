@@ -7,9 +7,12 @@ import org.apache.commons.io.IOUtils._
 import java.lang.Math._
 import java.net.{URLConnection, URI}
 
+/**
+ * a blob define some binary data together with access to its metadata.
+ */
 trait Blob {
 
-  type Location = {
+  type Source = {
     def uri: URI
     def data: Option[InputStream]
     def size: Option[Long]
@@ -17,24 +20,33 @@ trait Blob {
     def contentType: Option[MimeType]
   }
 
-  def uri = location.uri
+  /**
+   * define the location data of the blob.
+   */
+  def source: Source
 
-  def size = location.size
-
-  def lastModified = location.lastModified
-
-  def contentType = location.contentType
+  def uri: URI = source.uri
 
   /**
-   * define the location of the blob data.
+   * @return Some size of the blob or None if the size is unknown.
    */
-  def location: Location
+  def size = source.size
+
+  /**
+   * @return Some date when the blob was last modified as unix timestamp or None if it is not defined
+   */
+  def lastModified = source.lastModified
+
+  /**
+   * @return Some content type of the blob or None if it is unknown
+   */
+  def contentType = source.contentType
 
   /**
    * read data from the blob
    */
   def read[A](f: InputStream ⇒ A): Option[A] = {
-    for (in ← location.data) yield {
+    for (in ← source.data) yield {
       try {
         f(in)
       } finally {
@@ -43,13 +55,11 @@ trait Blob {
     }
   }
 
-  def available = location.data.isDefined
-
   /**
    * @return the blob as bytes. may be empty if blob is empty or not available.
    */
-  def bytes: Array[Byte] = {
-    read(toByteArray(_)).getOrElse(new Array[Byte](0))
+  def bytes: Option[Array[Byte]] = {
+    read(toByteArray(_))
   }
 
   /**
@@ -67,11 +77,15 @@ trait Blob {
   }
 }
 
+/**
+ * some file based blob
+ */
 trait FileBlob extends Blob {
 
   def file: File
 
-  def location = new {
+  lazy val source = new {
+
     def uri = file.toURI
 
     def data = if (file.canRead) Some(new FileInputStream(file)) else None
@@ -80,24 +94,35 @@ trait FileBlob extends Blob {
 
     def lastModified = if (file.canRead) Some(file.lastModified) else None
 
-    def contentType = None
+    def contentType = {
+      if (file.canRead)
+        Option(file.toURI.toURL.openConnection.getContentType).map(new MimeType(_))
+      else
+        None
+    }
   }
 }
 
+/**
+ * some uri based blob.
+ */
 trait UriBlob extends Blob {
+
+  self =>
 
   def proxy: Option[java.net.Proxy] = None
 
   def uri: URI
 
-  lazy val location = new {
+  lazy val source = new {
+
+    def uri = self.uri
 
     private val con: URLConnection = proxy match {
       case Some(p) => uri.toURL.openConnection(p)
       case None => uri.toURL.openConnection
     }
     con.connect
-    lazy val uri = UriBlob.this.uri
 
     def data = Some(uri.toURL.openStream)
 

@@ -325,9 +325,9 @@ class ImageSettingsTest extends Specification {
       }
 
       "label" in {
-        val (command :: param :: path :: Nil) = label("%m:%f %wx%h").apply(file).arguments
+        val (command :: param :: path :: Nil) = label("%m:%create %wx%h").apply(file).arguments
         command must_== "-label"
-        param must_== "%m:%f %wx%h"
+        param must_== "%m:%create %wx%h"
 
         "reset" in {
           val (command :: path :: Nil) = label.reset.apply(file).arguments
