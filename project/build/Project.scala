@@ -26,10 +26,9 @@ class Project(info: ProjectInfo)
   with Eclipsify
   with IdeaProject {
 
-  lazy val mavenLocal = "Local Maven Repository" at "file://" + Path.userHome + "/.m2/repository"
+  // lazy val mavenLocal = "Local Maven Repository" at "file://" + Path.userHome + "/.m2/repository"
 
-  lazy val maven_central = "Maven Central" at
-    "http://repo1.maven.org/maven2"
+  lazy val mavencentral = "Maven Central" at "http://repo1.maven.org/maven2"
   lazy val fusesource_snapshot_repo = "FuseSource Snapshots" at
     "http://repo.fusesource.com/nexus/content/repositories/snapshots"
   lazy val java_net_repo = "Java.net Repository" at
@@ -61,6 +60,8 @@ class Project(info: ProjectInfo)
   lazy val scalaCheck = "org.scala-tools.testing" % "scalacheck_2.8.1" % "1.8" % "test"
 
   lazy val mockito = "org.mockito" % "mockito-all" % "1.8.5" % "test"
+
+  lazy val vaadin = "com.vaadin" % "vaadin" % "6.5.0" withSources()
 
   override def compileOptions = super.compileOptions ++ Seq(Unchecked)
 
