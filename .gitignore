@@ -6,3 +6,5 @@ SESSIONS.ser
 target
 .scala_dependencies
 src_managed
+project/boot
+lib_managed
