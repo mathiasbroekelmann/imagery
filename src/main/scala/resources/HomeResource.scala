@@ -36,11 +36,24 @@ object Album {
   val lightboxType = "jpg"
 }
 
+trait ImageCropping extends ImageStore {
+
+  self =>
+
+  @Path("{imageName}/crop")
+  def crop(@PathParam("imageName") imageName: String) = {
+    load(URI.create(imageName)) match {
+      case Some(image) => new CropImage(self, image)
+      case _ => throw NotFoundException(imageName)
+    }
+  }
+}
+
 /**
  * sub resource of an album
  */
 @ImplicitProduces(Array("text/html;qs=5"))
-trait Album extends SidebarElement with ImageStore {
+trait Album extends SidebarElement with ImageStore with ImageCropping {
 
   self =>
 
@@ -65,7 +78,7 @@ trait Album extends SidebarElement with ImageStore {
   def album(@PathParam("album") album: String) = {
     childStore(album) match {
       case Some(store) => store
-      case _ => throw AlbumNotFoundException(album)
+      case _ => throw NotFoundException(album)
     }
   }
 
@@ -77,11 +90,11 @@ trait Album extends SidebarElement with ImageStore {
                               derivation: String,
                               format: String,
                               create: (InputStream, OutputStream) => A): ResponseBuilder = {
-    println("requesting image: " + imageName)
+    println("requesting imageName: " + imageName)
 
     def found(storedImage: StoredImage) = {
 
-      println("found image: " + storedImage)
+      println("found imageName: " + storedImage)
 
       def respondWithContent = {
         val response = Response.ok(new StreamingOutput {
@@ -90,7 +103,7 @@ trait Album extends SidebarElement with ImageStore {
               cachedOut => storedImage.read(create(_, cachedOut))
             } write (out)
           }
-        }, "image/" + format)
+        }, "imageName/" + format)
 
         storedImage.lastModified match {
           case Some(time) => response.lastModified(new Date(time))
@@ -173,7 +186,7 @@ case class NestedAlbum(someParent: Album,
   lazy val location = new File(someParent.location, name)
 }
 
-case class AlbumNotFoundException(message: String) extends WebApplicationException(Status.NOT_FOUND)
+case class NotFoundException(message: String) extends WebApplicationException(Status.NOT_FOUND)
 
 case class FileImageTeaser(file: File, storeUri: URI) extends FileBlob with ImageTeaser {
 
@@ -191,28 +204,28 @@ case class FileImageTeaser(file: File, storeUri: URI) extends FileBlob with Imag
 }
 
 /**
- * defines an image shown in the web page
+ * defines an imageName shown in the web page
  */
 trait ImageTeaser extends StoredImage {
 
   /**
-   * the thumbnail image
+   * the thumbnail imageName
    */
   def thumbnail: HtmlImage
 
   /**
-   * the lightbox image
+   * the lightbox imageName
    */
   def lightbox: HtmlImage
 }
 
 /**
- * an image which is rendered as an html img tag
+ * an imageName which is rendered as an html img tag
  */
 trait HtmlImage {
 
   /**
-   * src attribute value of the html image
+   * src attribute value of the html imageName
    */
   def src: String
 }

@@ -30,7 +30,8 @@ object ResourceCache extends ResourceCache {
 
 class FileResourceCache(val baseDir: File) extends ResourceCache {
 
-  def cached[A](source: Blob, id: String)(compute: OutputStream => A) = {
+  def resource(source: Blob, id: String) = new {
+
     lazy val md5: String = {
       val digest = MessageDigest.getInstance("MD5")
       digest.reset
@@ -46,20 +47,33 @@ class FileResourceCache(val baseDir: File) extends ResourceCache {
     }
 
     // use a 2 level hierarchy to reduce file count in a directory
-    val cachedir = new File(new File(baseDir, md5.take(2)), md5.drop(2).take(2))
-    
-    val cachedFile = new File(cachedir, md5 + "-" + id)
-    if(!mayUse(cachedFile)) {
-      cachedir.mkdirs
-      val output = new BufferedOutputStream(new FileOutputStream(cachedFile))
-      try {
-        compute(output)
-      } finally {
-        output.close
+    lazy val cachedir = new File(new File(baseDir, md5.take(2)), md5.drop(2).take(2))
+
+    lazy val cachedFile = new File(cachedir, md5 + "-" + id)
+
+    /**
+     * @return the cached resource which results from the computation function
+     */
+    def cached[A](compute: OutputStream => A) = {
+      if(!mayUse(cachedFile)) {
+        cachedir.mkdirs
+        val output = new BufferedOutputStream(new FileOutputStream(cachedFile))
+        try {
+          compute(output)
+        } finally {
+          output.close
+        }
+      }
+      new FileBlob {
+        def file = cachedFile
       }
     }
-    new FileBlob {
-      def file = cachedFile
-    }
+
+    /**
+     * flushes the cached resource
+     */
+    def flush: Unit = cachedFile.delete
   }
+
+  def cached[A](source: Blob, id: String)(compute: OutputStream => A) = resource(source, id).cached(compute)
 }
