@@ -1,0 +1,6 @@
+@import "../reindeer/styles.css";
+
+.image-teaser {
+  float: left;
+  cursor: pointer;
+}
