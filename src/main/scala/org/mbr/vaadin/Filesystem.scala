@@ -15,6 +15,13 @@ object Filesystem {
 class RichFile(file: File) {
 
   /**
+   * returns a file whose path is relative to the given parent file. If the given file is not a parent the file is returned as is.
+   */
+  def relativeTo(parent: File): File = {
+    new File(file.getAbsolutePath.stripPrefix(parent.getAbsolutePath + "/"))
+  }
+
+  /**
    * Builds a new collection by applying a partial function to all sub files of this directory on which the function is defined
    * if this is not a directory an empty list is returned.
    */
