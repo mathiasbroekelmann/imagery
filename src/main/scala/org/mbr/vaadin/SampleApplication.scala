@@ -1,31 +1,20 @@
 package org.mbr.vaadin
 
 import com.vaadin.{Application => VaadinApplication}
-import com.vaadin.ui.Button._
-import com.vaadin.event.FieldEvents
-import com.vaadin.event.FieldEvents.{BlurListener, BlurEvent, BlurNotifier}
-import java.awt.event.ComponentListener
-import com.vaadin.ui.Component.{Listener, Event}
-import com.vaadin.ui.Window.CloseListener
 import com.vaadin.ui._
-import java.net.URI
-import com.vaadin.data.Container.Hierarchical
-import scala.collection.JavaConversions._
-import reflect.{BeanProperty, BeanInfo}
-import com.vaadin.data.Container
-import com.vaadin.data.util.{FilesystemContainer, BeanItem, HierarchicalContainer, BeanItemContainer}
-import java.lang.{String, Class}
-import org.mbr.imagery.image.{Image, StoredFileImage, StoredImage, ImageStore}
+import com.vaadin.data.util.{FilesystemContainer}
+import java.lang.{String}
+import org.mbr.imagery.image.{Image}
 import org.mbr.imagery.blob.FileBlob
 import Filesystem._
 import org.apache.commons.io.IOUtils
 import org.apache.commons.io.output.ByteArrayOutputStream
-import com.vaadin.terminal.{Resource, StreamResource, Sizeable}
 import image.ResourceCache
 import java.io._
 import org.imagemagick.Convert._
-import org.imagemagick.{Convert, Color, Geometry}
 import com.vaadin.terminal.StreamResource.StreamSource
+import com.vaadin.terminal._
+import org.imagemagick.{Gravity, Color, Geometry}
 
 /**
  * @author mathias.broekelmann
@@ -41,6 +30,7 @@ class SampleApplication extends VaadinApplication {
   val mainPanel = new HorizontalSplitPanel
   val imagesPanel = new CssLayout
   val urifu = new UriFragmentUtility
+  val albumRoot = new File("/media/fotos")
 
   def init {
     buildMainLayout
@@ -62,13 +52,19 @@ class SampleApplication extends VaadinApplication {
     mainPanel.setSizeFull
     imagesPanel.setSizeFull
     urifu.setSizeUndefined
+
+    // image request handling
+    mainWindow.handle {
+      case ThumbnailRequest(path) => {
+        createImage(new File(albumRoot, path)).thumbnail.download
+      }
+    }
   }
 
   def createAlbumTree = {
     val filter = new FilenameFilter {
       def accept(dir: File, name: String) = new File(dir, name).isDirectory && !name.startsWith(".")
     }
-    val albumRoot = new File("/media/fotos")
     val store = new FilesystemContainer(albumRoot, filter, true)
     val tree = new Tree("Alben", store)
     tree.addStyleName("album-nav")
@@ -112,10 +108,14 @@ class SampleApplication extends VaadinApplication {
     }
     imagesPanel.removeAllComponents
     for(image <- images.take(20)) {
-      val teaser: Embedded = new Embedded(null, image.thumbnail)
+      val teaser = new CssLayout
+      val thumbnailImage = new Embedded(null, image.thumbnail.resource)
+      teaser.addComponent(thumbnailImage)
       teaser.addStyleName("image-teaser")
       imagesPanel.addComponent(teaser)
-      teaser.click {
+
+      thumbnailImage.setSizeUndefined
+      thumbnailImage.click {
         case Left(_) => println("image: " + image.name + " left clicked")
         case Right(_) => println("image: " + image.name + " right clicked")
         case Middle(_) => println("image: " + image.name + " middle clicked")
@@ -131,36 +131,41 @@ class SampleApplication extends VaadinApplication {
 
     def name = imageFile.getName
 
-    def thumbnail: Resource = {
+    def thumbnail = new {
 
-      def create(in: InputStream, out: OutputStream): Unit = {
-        println("render thumbnail")
-        val width, height = 150
-        val size = Geometry(width, height)
-        convert.define(jpegSize(Geometry(width * 4, height * 4)))
-          .apply(image(in).buffered)
-          .autoOrient
-          .thumbnail(Geometry(width * 2 * height * 2).area)
-          .borderColor(Color("snow"))
-          .border(Geometry(5, 5))
-          .background(Color("black"))
-          .polaroid(0)
-          .resize(Geometry(50.0))
-          .writeAs("png").to(out)
-      }
-
-      val source = new StreamSource {
-        def getStream = {
-          println("get stream for " + name)
-          val out = new ByteArrayOutputStream
-          ResourceCache.cached(self, "thumbnail") {
-            cachedOut => self.read(create(_, cachedOut))
-          } write out
-          new ByteArrayInputStream(out.toByteArray)
+      def download: DownloadStream = {
+        def create(in: InputStream, out: OutputStream): Unit = {
+          println("render thumbnail")
+          val width, height = 150
+          val size = Geometry(width, height)
+          convert.define(jpegSize(Geometry(width * 4, height * 4)))
+            .apply(image(in).buffered)
+            .autoOrient
+            .thumbnail(Geometry(width * 2 * height * 2).area)
+            .borderColor(Color("snow"))
+            .border(Geometry(5, 5))
+            .background(Color("black"))
+            .polaroid(0)
+            .resize(Geometry(50.0))
+            .background(Color.transparent)
+            .gravity(Gravity.South)
+            .extent(Geometry(200, 200))
+            .writeAs("png").to(out)
         }
+
+        println("get stream for " + name)
+        val out = new ByteArrayOutputStream
+        ResourceCache.cached(self, "thumbnail") {
+          cachedOut => self.read(create(_, cachedOut))
+        } write out
+
+        new DownloadStream(new ByteArrayInputStream(out.toByteArray), "image/png", name)
       }
 
-      new StreamResource(source, file.getName + "-thumbnail.png", application)
+      def resource = {
+        new ExternalResource("/image/" + file.relativeTo(albumRoot) + "-thumbnail.png", "image/png"); //source, file.getName + "-thumbnail.png", application)
+      }
+
     }
 
     def getStream = read { input =>
@@ -168,6 +173,25 @@ class SampleApplication extends VaadinApplication {
       IOUtils.copy(input, out)
       new ByteArrayInputStream(out.toByteArray)
     }.getOrElse(new ByteArrayInputStream(new Array[Byte](0)))
+  }
+}
+
+object ThumbnailRequest {
+  def unapply(request: Request): Option[String] = {
+    request match {
+      case Request(_, path, _) if (path.startsWith("image/")) && path.endsWith("-thumbnail.png") =>
+        Some(path.stripPrefix("image/").stripSuffix("-thumbnail.png"))
+      case _ => None
+    }
+  }
+}
+
+object ImageRequest {
+  def unapply(request: Request): Option[String] = {
+    request match {
+      case Request(_, path, _) if (path.startsWith("image/")) => Some(path.stripPrefix("image/"))
+      case _ => None
+    }
   }
 }
 
