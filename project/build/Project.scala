@@ -61,7 +61,7 @@ class Project(info: ProjectInfo)
 
   lazy val mockito = "org.mockito" % "mockito-all" % "1.8.5" % "test"
 
-  lazy val vaadin = "com.vaadin" % "vaadin" % "6.5.0" withSources()
+  lazy val vaadin = "com.vaadin" % "vaadin" % "6.5.3" withSources()
 
   override def compileOptions = super.compileOptions ++ Seq(Unchecked)
 
