@@ -49,7 +49,8 @@
         <servlet-class>com.vaadin.terminal.gwt.server.ApplicationServlet</servlet-class>
         <init-param>
             <param-name>application</param-name>
-            <param-value>org.mbr.vaadin.SampleApplication</param-value>
+            <!--<param-value>org.mbr.vaadin.SampleApplication</param-value>-->
+            <param-value>org.mbr.vaadin.ImageryApplication</param-value>
         </init-param>
     </servlet>
 
