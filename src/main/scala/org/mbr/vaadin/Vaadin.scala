@@ -10,6 +10,12 @@ import com.vaadin.data.Property._
 import com.vaadin.event.{MouseEvents, ItemClickEvent, FieldEvents}
 import com.vaadin.event.MouseEvents.{DoubleClickEvent, DoubleClickListener, ClickEvent}
 import com.vaadin.ui.UriFragmentUtility.FragmentChangedListener
+import java.net.URL
+import com.vaadin.terminal.{ParameterHandler, URIHandler, DownloadStream}
+import java.lang.String
+import java.util.{Map => JMap}
+import util.DynamicVariable
+import scala.collection.JavaConversions._
 
 /**
  * @author mathias.broekelmann
@@ -78,6 +84,7 @@ class RichEmbedded(embedded: Embedded) {
       def click(event: ClickEvent) = f(event)
     }
     embedded.addListener(listener)
+    embedded.addStyleName("clickable")
     listener
   }
 }
@@ -128,11 +135,57 @@ class RichTree(tree: Tree) {
   }
 }
 
-
 class RichWindow(window: Window) {
 
+  /**
+   * register a partial function which is executed when a matching request comes along the way.
+   */
+  def handle(pf: PartialFunction[Request, DownloadStream]): RequestHandler = {
+    val handler = new RequestHandler {
+
+      val currentParameters = new DynamicVariable[Map[String, List[String]]](Map.empty)
+      
+      def handleParameters(parameters: JMap[String, Array[String]]) = {
+        currentParameters.value = for(entry <- parameters.toMap) yield (entry._1, entry._2.toList)
+      }
+
+      def handleURI(context: URL, relativeUri: String) = {
+        val request = Request(context, relativeUri, currentParameters.value)
+        if(pf.isDefinedAt(request)) {
+          pf(request)
+        } else {
+          null
+        }
+      }
+    }
+    window.addURIHandler(handler)
+    window.addParameterHandler(handler)
+    handler
+  }
+
+  /**
+   * unregister any previously registered request handler
+   *
+   * @see #handle
+   */
+  def unhandle(handler: RequestHandler) {
+    window.removeURIHandler(handler)
+    window.removeParameterHandler(handler)
+  }
+
+  /**
+   * identifies a request handler which is created through #handle and can be unregistered by #unhandle
+   */
+  trait RequestHandler extends URIHandler with ParameterHandler
+
+  /**
+   * register a close window event
+   */
   def close(f: => Unit): CloseListener = close(_ => f)
 
+  /**
+   * register a close window event with access to the event
+   */
   def close(f: Window#CloseEvent => Unit) = {
     val listener = new CloseListener {
       def windowClose(e: Window#CloseEvent) = f(e)
@@ -141,6 +194,8 @@ class RichWindow(window: Window) {
     listener
   }
 }
+
+case class Request(context: URL, path: String, parameters: Map[String, List[String]] = Map.empty)
 
 class RichButton(button: Button) {
 
