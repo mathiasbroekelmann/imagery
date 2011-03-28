@@ -10,22 +10,36 @@ import com.vaadin.ui.ComponentContainer
  */
 
 /**
- * defines an extension in the application
+ * defines an extension in the application. Extensions are normally collected in some way for the application.
+ * The order of the extension doesn't matter.
  */
 trait Extension {
 
   /**
    * initialize the extension
    */
-  def init(context: ExtensionContext): Unit
+  def start(context: ExtensionContext): ActivatedExtension
+}
+
+/**
+ * defines an activated extension which can be stopped.
+ */
+trait ActivatedExtension {
+
+  def stop: Unit
+}
+
+/**
+ * default result for activated extensions which don't have any jobs to do on #stop
+ */
+object Activated extends ActivatedExtension with Activation  {
+
+  def stop = {}
+
+  def deactivate = {}
 }
 
 trait ExtensionContext {
-
-  /**
-   * @return the application frame
-   */
-  def application: ApplicationFrame
 
   /**
    * define a function which is applied when a matching extension point is registered in the application
@@ -42,6 +56,7 @@ trait ExtensionContext {
  * optional result of an applied function in ExtensionContext#activate which #deactivate function is called when the extension point is unregistered.
  */
 trait Activation {
+
   /**
    * clean up any resources created by this activation if possible
    */
@@ -65,11 +80,6 @@ trait RegisteredActivation {
 trait RegisteredExtensionPoint {
 
   /**
-   * @return the application where the extension is registered at
-   */
-  def application: ApplicationFrame
-
-  /**
    * @return the extension point which is registered
    */
   def extensionPoint: ExtensionPoint
@@ -77,12 +87,81 @@ trait RegisteredExtensionPoint {
   /**
    * unregisters the extension point.
    */
-  def unregister: Unit
+  def unregister: Unit = {}
 }
 
 /**
  * defines an extension point
  */
 trait ExtensionPoint {
-  def unregistered: Unit
+
+  def unregistered: Unit = {}
+}
+
+class DefaultExtensionContext extends ExtensionContext {
+
+  case class ActiveActivation(extension: ExtensionPoint,
+                              pf: PartialFunction[ExtensionPoint, Option[Activation]],
+                              activation: Activation) extends Activation {
+
+    def deactivate = {
+      activation.deactivate
+    }
+  }
+
+  var registeredActivations: List[PartialFunction[ExtensionPoint, Option[Activation]]] = Nil
+
+  var extensionPoints: List[ExtensionPoint] = Nil
+
+  var activations: List[ActiveActivation] = Nil
+
+  def activationCandidate(extension: ExtensionPoint, pf: PartialFunction[ExtensionPoint, Option[Activation]]): Option[Activation] = {
+    if (pf.isDefinedAt(extension)) {
+      for (activation <- pf(extension)) yield {
+        activations = activations :+ ActiveActivation(extension, pf, activation)
+        activation
+      }
+    } else {
+      None
+    }
+  }
+
+  def register(extension: ExtensionPoint) = {
+    // go through all existing activations
+    for (activate <- registeredActivations) {
+      activationCandidate(extension, activate)
+    }
+
+    // keep the extension point
+    extensionPoints = extensionPoints :+ extension
+    new RegisteredExtensionPoint {
+      override def unregister = {
+        extensionPoints = extensionPoints.filterNot(_ == extension)
+        for (activation <- activations; if activation.extension == extension) {
+          activation.deactivate
+        }
+        activations = activations.filterNot(_.extension == extension)
+      }
+
+      def extensionPoint = {
+        extensionPoint
+      }
+    }
+  }
+
+  def activate(pf: PartialFunction[ExtensionPoint, Option[Activation]]): RegisteredActivation = {
+    for (extension <- extensionPoints) {
+      activationCandidate(extension, pf)
+    }
+    registeredActivations = registeredActivations :+ pf
+
+    new RegisteredActivation {
+      def unregister = {
+        for (activation <- activations; if activation.pf == pf) {
+          activation.deactivate
+        }
+        activations = activations.filterNot(_.pf == pf)
+      }
+    }
+  }
 }
