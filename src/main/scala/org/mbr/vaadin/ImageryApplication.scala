@@ -8,7 +8,7 @@ import com.vaadin.{Application => VaadinApplication}
 object ImageryApplication {
 
   def extensions: List[Extension] = {
-    TopNavigation :: FooTopNavigationAction :: Nil
+    TopNavigation :: FooTopNavigationAction :: FilesystemAlbum :: Nil
   }
 }
 
