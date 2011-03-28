@@ -8,7 +8,24 @@ import com.vaadin.{Application => VaadinApplication}
 object ImageryApplication {
 
   def extensions: List[Extension] = {
-    TopNavigation :: Nil
+    TopNavigation :: FooTopNavigationAction :: Nil
+  }
+}
+
+object FooTopNavigationAction extends Extension {
+
+  def start(context: ExtensionContext) = {
+    println("FooBar started")
+    context.activate {
+      case topNav: TopNavigation => {
+        println("top navigation activated")
+        topNav.register(Action("FooBar", tooltip = Some("Tooltip of FooBar"))).click {
+          println("FooBar clicked")
+        }
+        Some(Activated)
+      }
+    }
+    Activated
   }
 }
 
