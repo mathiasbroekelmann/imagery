@@ -18,7 +18,7 @@ trait Extension {
   /**
    * initialize the extension
    */
-  def start(context: ExtensionContext): ActivatedExtension
+  def start(context: ExtensionContext): Option[ActivatedExtension]
 }
 
 /**

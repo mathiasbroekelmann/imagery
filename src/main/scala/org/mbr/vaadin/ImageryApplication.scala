@@ -25,7 +25,7 @@ object FooTopNavigationAction extends Extension {
         Some(Activated)
       }
     }
-    Activated
+    None
   }
 }
 
@@ -43,9 +43,9 @@ class ImageryApplication extends VaadinApplication {
   def init {
     val extensionContext = new DefaultExtensionContext
     val modules = new DefaultApplicationFrame(self) :: ImageryApplication.extensions
-    activatedExtensions = for (extension <- modules) yield {
+    activatedExtensions = (for (extension <- modules) yield {
       extension.start(extensionContext)
-    }
+    }).flatten
   }
 
   override def close = {

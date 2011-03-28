@@ -46,7 +46,7 @@ class DefaultApplicationFrame(val application: VaadinApplication) extends Extens
     container.addStyleName("container")
     buildApplicationFrame
     context.register(self)
-    Activated
+    None
   }
 }
 
