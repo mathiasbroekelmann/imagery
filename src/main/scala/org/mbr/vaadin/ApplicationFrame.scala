@@ -16,6 +16,7 @@ class DefaultApplicationFrame(val application: VaadinApplication) extends Extens
   val marginal = new CssLayout
   val content = new CssLayout
   val footer = new CssLayout
+  val urifu = new UriFragmentUtility
 
   def buildApplicationFrame = {
     top.addStyleName("top")
@@ -38,6 +39,7 @@ class DefaultApplicationFrame(val application: VaadinApplication) extends Extens
     container.addComponent(footer)
     footer.addComponent(new Label("Footer"))
 
+    container.addComponent(urifu)
   }
 
   def start(context: ExtensionContext) = {
@@ -86,5 +88,7 @@ trait ApplicationFrame {
    * the footer container
    */
   def footer: ComponentContainer
+
+  def urifu: UriFragmentUtility
 }
 
