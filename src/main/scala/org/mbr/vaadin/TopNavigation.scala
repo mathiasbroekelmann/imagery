@@ -30,10 +30,10 @@ object TopNavigation extends Extension {
     context.register(new TopNavigation {
       def action(label: String) = {
         new {
-          def click(f: => Unit) = {
+          def click(action: => Unit) = {
             val button = new Button(label)
             navigation.addComponent(button)
-            button.click(f)
+            button click action
             new Activation {
               def deactivate = {
                 navigation.removeComponent(button)
@@ -65,6 +65,6 @@ trait TopNavigation extends ExtensionPoint {
    * register an action for the top navigation
    */
   def action(label: String): {
-    def click(f: => Unit): Activation
+    def click(action: => Unit): Activation
   }
 }
