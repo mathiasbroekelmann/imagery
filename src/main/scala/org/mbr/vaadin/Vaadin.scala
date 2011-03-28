@@ -174,11 +174,6 @@ class RichWindow(window: Window) {
   }
 
   /**
-   * identifies a request handler which is created through #handle and can be unregistered by #unhandle
-   */
-  trait RequestHandler extends URIHandler with ParameterHandler
-
-  /**
    * register a close window event
    */
   def close(f: => Unit): CloseListener = close(_ => f)
@@ -194,6 +189,11 @@ class RichWindow(window: Window) {
     listener
   }
 }
+
+/**
+ * identifies a request handler which is created through #handle and can be unregistered by #unhandle
+ */
+trait RequestHandler extends URIHandler with ParameterHandler
 
 case class Request(context: URL, path: String, parameters: Map[String, List[String]] = Map.empty)
 
