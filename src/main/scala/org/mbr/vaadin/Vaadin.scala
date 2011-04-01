@@ -191,7 +191,7 @@ class RichWindow(window: Window) {
 }
 
 /**
- * identifies a request handler which is created through #handle and can be unregistered by #unhandle
+ * identifies a request handler which is created through #handle and can be unregister by #unhandle
  */
 trait RequestHandler extends URIHandler with ParameterHandler
 

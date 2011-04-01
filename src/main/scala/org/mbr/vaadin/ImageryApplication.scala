@@ -1,6 +1,7 @@
 package org.mbr.vaadin
 
 import com.vaadin.{Application => VaadinApplication}
+import Extension._
 
 /**
  * define the activated extensions for the application
@@ -19,13 +20,12 @@ object FooTopNavigationAction extends Extension {
     context.activate {
       case topNav: TopNavigation => {
         println("top navigation activated")
-        topNav.register(Action("FooBar", tooltip = Some("Tooltip of FooBar"))).click {
+        val boundAction = topNav.register(Action("FooBar", tooltip = Some("Tooltip of FooBar"))).click {
           println("FooBar clicked")
         }
-        Some(Activated)
+        dispose(boundAction.unbind)
       }
     }
-    None
   }
 }
 
@@ -38,19 +38,31 @@ class ImageryApplication extends VaadinApplication {
 
   self =>
 
-  var activatedExtensions: Iterable[ActivatedExtension] = Nil
+  var activatedExtensions: Iterable[Disposable] = Nil
 
   def init {
     val extensionContext = new DefaultExtensionContext
-    val modules = new DefaultApplicationFrame(self) :: ImageryApplication.extensions
+    val frame = new DefaultApplicationFrame(self) with Extension with ExtensionPoint {
+      frame =>
+      def start(context: ExtensionContext) = {
+        self.setMainWindow(window)
+        self.setTheme("imagery")
+        context.register(frame)
+      }
+
+      def dispose = self.removeWindow(window)
+    }
+
+    val modules = frame :: ImageryApplication.extensions
     activatedExtensions = (for (extension <- modules) yield {
       extension.start(extensionContext)
-    }).flatten
+    })
   }
 
   override def close = {
     for (activation <- activatedExtensions) {
-      activation.stop
+      activation.dispose
     }
+    activatedExtensions = Nil
   }
 }
