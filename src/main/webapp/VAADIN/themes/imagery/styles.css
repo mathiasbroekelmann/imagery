@@ -74,11 +74,22 @@ div .footer {
 
 
 .image-teaser {
-  float: left;
-  height: 230px;
-  width: 200px;
+  /*float: left;*/
+  /*height: 180px;*/
+  /*width: 200px;*/
+  margin-top: 10px;
 }
 
 .image-teaser .clickable {
   cursor: pointer;
+}
+
+.image-teaser .image {
+    /*
+  margin-left: auto;
+  margin-right: auto;
+  */
+}
+
+.image-teaser .image img {
 }
