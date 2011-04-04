@@ -16,6 +16,7 @@ import java.lang.String
 import java.util.{Map => JMap}
 import util.DynamicVariable
 import scala.collection.JavaConversions._
+import xml.NodeSeq
 
 /**
  * @author mathias.broekelmann
@@ -40,6 +41,11 @@ object Vaadin {
   implicit def richEmbedded(embedded: Embedded) = new RichEmbedded(embedded)
 
   implicit def richUriFragment(uriFragment: UriFragmentUtility) = new RichUriFragment(uriFragment)
+
+  /**
+   * create a richtext label.
+   */
+  def label(xhtml: NodeSeq): Label = new Label(xhtml.toString, Label.CONTENT_XHTML)
 }
 
 class RichUriFragment(uriFragment: UriFragmentUtility) {
