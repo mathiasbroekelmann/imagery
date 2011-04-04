@@ -100,6 +100,7 @@ class ImageOperatorsSpec extends Specification {
       operation must_== ("-border")
       param must_== ("100x200")
 
+      /**
       "with inline color definition" in {
         val (path :: colorOperation :: colorParam :: borderOperation :: borderParam :: Nil) = base.border(Geometry(150, 150), red).arguments.toList
         path must endWith("fruehling.jpg")
@@ -107,7 +108,7 @@ class ImageOperatorsSpec extends Specification {
         colorParam must_== red.spec
         borderOperation must_== "-border"
         borderParam must_== "150x150"
-      }
+      }*/
     }
 
     "charcoal" in {

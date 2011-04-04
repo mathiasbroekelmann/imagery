@@ -126,7 +126,7 @@ abstract class BoundButtonAction(val action: ExecutableAction,
 /**
  * some action which has been bound to a component
  */
-trait BoundAction extends ExecutableAction {
+trait BoundAction extends ExecutableAction with Disposable {
 
   type CallingAction = BoundAction
 
@@ -141,4 +141,6 @@ trait BoundAction extends ExecutableAction {
   def enable: Unit
 
   def unbind: Unit
+
+  def dispose = unbind
 }

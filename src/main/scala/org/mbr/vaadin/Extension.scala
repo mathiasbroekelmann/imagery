@@ -1,8 +1,5 @@
 package org.mbr.vaadin
 
-import com.vaadin.Application
-import com.vaadin.ui.ComponentContainer
-
 /**
  * User: mathias
  * Date: 27.03.11 20:08
@@ -18,25 +15,36 @@ trait Extension {
   /**
    * initialize the extension
    */
-  def start(context: ExtensionContext): Option[ActivatedExtension]
+  def start(context: ExtensionContext): Disposable
 }
+
+/**
+ * defines optional functions which ease the implementation of extensions.
+ */
+object Extension {
+
+  /**
+   * wrap a function to be applied during cleanup.
+   */
+  def dispose(f: => Unit) = {
+    new Disposable with ActivatedExtension with Activation with Registration {
+      def dispose = f
+
+      def deactivate = dispose
+
+      def stop = dispose
+
+      def unregister = dispose
+    }
+  }
+}
+
+import Extension._
 
 /**
  * defines an activated extension which can be stopped.
  */
-trait ActivatedExtension {
-
-  def stop: Unit
-}
-
-/**
- * default result for activated extensions which don't have any jobs to do on #stop
- */
-object Activated extends ActivatedExtension with Activation  {
-
-  def stop = {}
-
-  def deactivate = {}
+trait ActivatedExtension extends Disposable {
 }
 
 trait ExtensionContext {
@@ -44,89 +52,87 @@ trait ExtensionContext {
   /**
    * define a function which is applied when a matching extension point is registered in the application
    */
-  def activate(pf: PartialFunction[ExtensionPoint, Option[Activation]]): RegisteredActivation
+  def activate(pf: PartialFunction[AnyRef, Activation]): Disposable
 
   /**
    * registers a new extension point.
    */
-  def register(extensionPoint: ExtensionPoint): RegisteredExtensionPoint
+  def register[A <: AnyRef](extensionPoint: A): RegisteredExtensionPoint[A]
+
+
+  def activateWith[A](f: A => Activation)(implicit manifest: ClassManifest[A]): Disposable
 }
 
 /**
- * optional result of an applied function in ExtensionContext#activate which #deactivate function is called when the extension point is unregistered.
+ * some generic trait to dispose any resources associated with it
  */
-trait Activation {
+trait Disposable {
 
   /**
-   * clean up any resources created by this activation if possible
+   * release any resources.
    */
-  def deactivate: Unit
+  def dispose: Unit
+}
+
+/**
+ * optional result of an applied function in ExtensionContext#activate which #deactivate function is called when the extension point is unregister.
+ */
+trait Activation extends Disposable {
 }
 
 /**
  * Result of a registered activation through ExtensionContext#activate. Allows unregistering the activation registration
  */
-trait RegisteredActivation {
-
-  /**
-   * unregister the activation registration
-   */
-  def unregister: Unit
+trait Registration extends Disposable {
 }
 
 /**
  * defines a registered extension point
  */
-trait RegisteredExtensionPoint {
+trait RegisteredExtensionPoint[A] extends Registration {
 
   /**
    * @return the extension point which is registered
    */
-  def extensionPoint: ExtensionPoint
-
-  /**
-   * unregisters the extension point.
-   */
-  def unregister: Unit = {}
+  def extensionPoint: A
 }
 
 /**
  * defines an extension point
  */
-trait ExtensionPoint {
-
-  def unregistered: Unit = {}
+trait ExtensionPoint extends Disposable {
 }
 
 class DefaultExtensionContext extends ExtensionContext {
 
-  case class ActiveActivation(extension: ExtensionPoint,
-                              pf: PartialFunction[ExtensionPoint, Option[Activation]],
+  type Extension = AnyRef
+
+  type ExtensionPoint = AnyRef
+
+  case class ActiveActivation(extension: AnyRef,
+                              pf: PartialFunction[AnyRef, Activation],
                               activation: Activation) extends Activation {
 
-    def deactivate = {
-      activation.deactivate
-    }
+    def dispose = activation.dispose
   }
 
-  var registeredActivations: List[PartialFunction[ExtensionPoint, Option[Activation]]] = Nil
+  var registeredActivations: List[PartialFunction[AnyRef, Activation]] = Nil
 
-  var extensionPoints: List[ExtensionPoint] = Nil
+  var extensionPoints: List[AnyRef] = Nil
 
   var activations: List[ActiveActivation] = Nil
 
-  def activationCandidate(extension: ExtensionPoint, pf: PartialFunction[ExtensionPoint, Option[Activation]]): Option[Activation] = {
+  def activationCandidate(extension: AnyRef, pf: PartialFunction[AnyRef, Activation]): Option[Activation] = {
     if (pf.isDefinedAt(extension)) {
-      for (activation <- pf(extension)) yield {
-        activations = activations :+ ActiveActivation(extension, pf, activation)
-        activation
-      }
+      val activation = pf(extension)
+      activations = activations :+ ActiveActivation(extension, pf, activation)
+      Some(activation)
     } else {
       None
     }
   }
 
-  def register(extension: ExtensionPoint) = {
+  def register[A <: AnyRef](extension: A) = {
     // go through all existing activations
     for (activate <- registeredActivations) {
       activationCandidate(extension, activate)
@@ -134,33 +140,40 @@ class DefaultExtensionContext extends ExtensionContext {
 
     // keep the extension point
     extensionPoints = extensionPoints :+ extension
-    new RegisteredExtensionPoint {
-      override def unregister = {
+    new RegisteredExtensionPoint[A] {
+      override def dispose = {
         extensionPoints = extensionPoints.filterNot(_ == extension)
         for (activation <- activations; if activation.extension == extension) {
-          activation.deactivate
+          activation.dispose
         }
         activations = activations.filterNot(_.extension == extension)
       }
 
-      def extensionPoint = {
-        extensionPoint
-      }
+      def extensionPoint = extension
     }
   }
 
-  def activate(pf: PartialFunction[ExtensionPoint, Option[Activation]]): RegisteredActivation = {
+  def activate(pf: PartialFunction[AnyRef, Activation]): Disposable = {
     for (extension <- extensionPoints) {
       activationCandidate(extension, pf)
     }
     registeredActivations = registeredActivations :+ pf
+    dispose {
+      for (activation <- activations; if activation.pf == pf) {
+        activation.dispose
+      }
+      activations = activations.filterNot(_.pf == pf)
+    }
+  }
 
-    new RegisteredActivation {
-      def unregister = {
-        for (activation <- activations; if activation.pf == pf) {
-          activation.deactivate
+  def activateWith[A](f: (A) => Activation)(implicit manifest: ClassManifest[A]) = null
+
+  def register[A](pf: PartialFunction[AnyRef, A]) = {
+    new {
+      def apply: Iterable[A] = {
+        for (extension <- extensionPoints.toStream; if pf.isDefinedAt(extension)) yield {
+          pf(extension)
         }
-        activations = activations.filterNot(_.pf == pf)
       }
     }
   }

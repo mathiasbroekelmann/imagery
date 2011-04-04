@@ -31,14 +31,14 @@ class ImageSourceTest extends Specification {
       }
 
       "size attribute" in {
-        val (somesize :: widthHeight :: path :: Nil) = Convert.size(55,66).apply(file).arguments
+        val (somesize :: widthHeight :: path :: Nil) = convert.size(55,66).apply(file).arguments
         somesize must_== "-size"
         widthHeight must_== "55x66"
         path must_== file.getAbsolutePath
       }
 
       "depth attribute" in {
-        val (deptharg :: depthValue :: path :: Nil) = depth(16).apply(file).arguments
+        val (deptharg :: depthValue :: path :: Nil) = convert.depth(16).apply(file).arguments
         deptharg must_== "-depth"
         depthValue must_== "16"
         path must_== file.getAbsolutePath

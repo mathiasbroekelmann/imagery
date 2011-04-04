@@ -12,7 +12,8 @@ class ImageSettingsTest extends Specification {
   "image attributes" should {
     "define image settings" in {
 
-      import Convert._
+      val convert = Convert.convert
+      import convert._
 
       val file = new File("src/test/resources/fruehling.jpg")
       val source = image(file)
@@ -81,7 +82,7 @@ class ImageSettingsTest extends Specification {
 
       "border-color" in {
         val (command :: param :: path :: Nil) = borderColor(Color.white).apply(file).arguments
-        command must_== "-border-color"
+        command must_== "-bordercolor"
         param must_== Color.white.spec
       }
 
@@ -239,20 +240,20 @@ class ImageSettingsTest extends Specification {
 
       "filter" in {
         import FilterType._
-        val filter = Convert.filter(Mitchell).apply(file)
+        val filter = convert.filter(Mitchell).apply(file)
         val (command :: param :: path :: Nil) = filter.arguments
         command must_== "-filter"
         param must_== "Mitchell"
 
         "blur" in {
-          val (command :: param :: define :: defineParam :: path :: Nil) = Convert.filter(Filter(Mitchell).blur(.5)).apply(file).arguments
+          val (command :: param :: define :: defineParam :: path :: Nil) = convert.filter(Filter(Mitchell).blur(.5)).apply(file).arguments
           command must_== "-filter"
           param must_== "Mitchell"
           define must_== "-define"
           defineParam must_== "filter:blur=0.5"
 
           "continue defining other settings" in {
-            val settings = Convert.filter(Filter(Mitchell).blur(.5)).background(Color.black).apply(file)
+            val settings = convert.filter(Filter(Mitchell).blur(.5)).background(Color.black).apply(file)
             val (command :: param :: define :: defineParam :: background :: color :: path :: Nil) = settings.arguments
             command must_== "-filter"
             param must_== "Mitchell"

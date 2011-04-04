@@ -47,7 +47,8 @@ class Project(info: ProjectInfo)
   lazy val jetty_webapp = "org.eclipse.jetty" % "jetty-webapp" % "7.0.2.RC0" % "test"
   lazy val scalateTest = "org.fusesource.scalate" % "scalate-test" % "1.4.0" % "test"
 
-  lazy val imageMetadata = "com.kenai.nbpwr" % "com-drew-metadata" % "2.4.0-beta-1" from "http://www.drewnoakes.com/drewnoakes.com/code/exif/releases/metadata-extractor-2.4.0-beta-1.jar"
+  lazy val imageMetadata = "com.kenai.nbpwr" % "com-drew-metadata" % "2.4.0-beta-1" from
+    "http://www.drewnoakes.com/drewnoakes.com/code/exif/releases/metadata-extractor-2.4.0-beta-1.jar"
 
   lazy val jodaDateTime = "joda-time" % "joda-time" % "1.6.2"
 
@@ -61,7 +62,7 @@ class Project(info: ProjectInfo)
 
   lazy val mockito = "org.mockito" % "mockito-all" % "1.8.5" % "test"
 
-  lazy val vaadin = "com.vaadin" % "vaadin" % "6.5.3" withSources()
+  lazy val vaadin = "com.vaadin" % "vaadin" % "6.5.3" withSources ()
 
   override def compileOptions = super.compileOptions ++ Seq(Unchecked)
 

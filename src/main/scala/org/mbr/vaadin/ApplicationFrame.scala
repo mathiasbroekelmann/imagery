@@ -3,11 +3,7 @@ package org.mbr.vaadin
 import com.vaadin.{Application => VaadinApplication}
 import com.vaadin.ui._
 
-class DefaultApplicationFrame(val application: VaadinApplication) extends Extension with ExtensionPoint with ApplicationFrame {
-
-  self =>
-
-  import application._
+class DefaultApplicationFrame(val application: VaadinApplication) extends ApplicationFrame {
 
   val container = new CssLayout
   val window = new Window("Imagery", container)
@@ -18,7 +14,7 @@ class DefaultApplicationFrame(val application: VaadinApplication) extends Extens
   val footer = new CssLayout
   val urifu = new UriFragmentUtility
 
-  def buildApplicationFrame = {
+  {
     top.addStyleName("top")
     container.addComponent(top)
     top.addComponent(new Label((<h1>Header</h1>).toString, Label.CONTENT_XHTML))
@@ -40,15 +36,6 @@ class DefaultApplicationFrame(val application: VaadinApplication) extends Extens
     footer.addComponent(new Label("Footer"))
 
     container.addComponent(urifu)
-  }
-
-  def start(context: ExtensionContext) = {
-    setMainWindow(window)
-    setTheme("imagery")
-    container.addStyleName("container")
-    buildApplicationFrame
-    context.register(self)
-    None
   }
 }
 

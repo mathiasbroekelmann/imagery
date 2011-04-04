@@ -1,8 +1,8 @@
 package org.mbr.vaadin
 
 import Vaadin._
-import org.mbr.imagery.blob.Blob
 import com.vaadin.ui.{ComponentContainer, Button, CssLayout}
+import Extension._
 
 /**
  * top navigation extension
@@ -14,32 +14,35 @@ import com.vaadin.ui.{ComponentContainer, Button, CssLayout}
 object TopNavigation extends Extension {
 
   def start(context: ExtensionContext) = {
+    context.activateWith[ApplicationFrame] { enable(_, context) }
     context.activate {
-      case frame: ApplicationFrame => Some(activate(frame, context))
+      case frame: ApplicationFrame => enable(frame, context)
     }
-    None
   }
 
-  def activate(frame: ApplicationFrame, context: ExtensionContext): Activation = {
-    val top = frame.top
-    val navigation = new CssLayout
-    navigation.addStyleName("navigation")
-    top.addComponent(navigation)
-
-    println("registering top navigation")
-    context.register(new ButtonTopNavigation(navigation))
-    new Activation {
-      def deactivate = {
-        top.removeComponent(navigation)
+  def enable(frame: ApplicationFrame, context: ExtensionContext): Activation = {
+    val registration = context.register(new ButtonTopNavigation {
+      val container = {
+        val navigation = new CssLayout
+        navigation.addStyleName("navigation")
+        frame.top.addComponent(navigation)
+        navigation
       }
-    }
+
+      def dispose = frame.top.removeComponent(container)
+    })
+    dispose(registration.dispose)
   }
 }
 
-class ButtonTopNavigation(container: ComponentContainer) extends TopNavigation {
+trait ButtonTopNavigation extends TopNavigation {
 
-  def context: ExecutionContext = new ExecutionContext {
-    def notify(message: Option[String], progress: Option[Double]) = {}
+  def container: ComponentContainer
+
+  def context: ExecutionContext = {
+    new ExecutionContext {
+      def notify(message: Option[String], progress: Option[Double]) = {}
+    }
   }
 
   def register(action: Action) = {
@@ -57,7 +60,7 @@ class ButtonTopNavigation(container: ComponentContainer) extends TopNavigation {
         }
         button.setEnabled(action.enabled)
         // TODO: add icon
-        
+
         container.addComponent(button)
 
         bind(action calling exec, button)
@@ -65,12 +68,15 @@ class ButtonTopNavigation(container: ComponentContainer) extends TopNavigation {
 
       def bind(action: ExecutableAction, button: Button, listener: Option[Button.ClickListener] = None): BoundButtonAction = {
         listener match {
-          case Some(l) => button.removeListener(l)
-          case _ => 
+          case Some(l) => {
+            button.removeListener(l)
+          }
+          case _ =>
         }
         val newListener = button click action(context)
         new BoundButtonAction(action, button) {
           def calling(f: (ExecutionContext) => Unit) = bind(action calling f, button, Some(newListener))
+
           def unbind = {
             container.removeComponent(button)
           }

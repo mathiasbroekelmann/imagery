@@ -13,6 +13,8 @@ import org.apache.commons.io.IOUtils
 import org.imagemagick.{Convert, Gravity, Color, Geometry}
 import Convert._
 
+import Extension._
+
 /**
  * User: mathias
  * Date: 28.03.11 21:25
@@ -27,17 +29,16 @@ object FilesystemAlbum extends Extension {
     context.activate {
       case topNav: TopNavigation => {
         val activation = context.activate {
-          case frame: ApplicationFrame => activate(topNav, frame)
+          case frame: ApplicationFrame => {
+            enable(topNav, frame)
+          }
         }
-        Some(new Activation {
-          def deactivate = activation.unregister
-        })
+        dispose(activation.dispose)
       }
     }
-    None
   }
 
-  def activate(nav: TopNavigation, frame: ApplicationFrame): Option[Activation] = {
+  def enable(nav: TopNavigation, frame: ApplicationFrame): Activation = {
     println("activating filesystem album")
 
     def showImages(albumDirectory: File): Unit = {
@@ -55,12 +56,10 @@ object FilesystemAlbum extends Extension {
     }
 
     val registeredActions = registerActions(frame, tree)
-    Some(new Activation {
-      def deactivate = {
-        registration.unbind
-        registeredActions.deactivate
-      }
-    })
+    dispose {
+      registration.unbind
+      registeredActions.dispose
+    }
   }
 
   def registerActions(frame: ApplicationFrame, albumTree: Tree): Activation = {
@@ -75,7 +74,7 @@ object FilesystemAlbum extends Extension {
      * expand album tree up to the given directory
      */
     def expand(album: File) {
-      if(album != albumRoot && album != null) {
+      if (album != albumRoot && album != null) {
         expand(album.getParentFile)
         albumTree.expandItem(album)
       }
@@ -94,7 +93,7 @@ object FilesystemAlbum extends Extension {
     }
 
     new Activation {
-      def deactivate = {
+      def dispose = {
         frame.urifu.removeListener(fragmentListener)
         frame.window.unhandle(thumbnailHandler)
       }
@@ -103,14 +102,19 @@ object FilesystemAlbum extends Extension {
 
   def albumFragment(path: Option[String] = None) = {
     path match {
-      case None => "album"
-      case Some(path) => "album" + path
+      case None => {
+        "album"
+      }
+      case Some(path) => {
+        "album" + path
+      }
     }
   }
 
   object AlbumFragment {
+
     def unapply(fragment: String): Option[String] = {
-      if(fragment.startsWith("album")) {
+      if (fragment.startsWith("album")) {
         Some(fragment.stripPrefix("album"))
       } else {
         None
@@ -151,75 +155,95 @@ object FilesystemAlbum extends Extension {
 
   def showImagesIn(directory: File, container: ComponentContainer) = {
     val images = directory.collect {
-      case file: File if file.toURI.toURL.openConnection.getContentType.startsWith("image/") => createImage(file)
+      case file: File if file.toURI.toURL.openConnection.getContentType.startsWith("image/") => {
+        createImage(file)
+      }
     }
     container.removeAllComponents
     for (image <- images.take(20)) {
       val teaser = new CssLayout
       val thumbnailImage = new Embedded(null, image.thumbnail.resource)
+      thumbnailImage.addStyleName("image")
       teaser.addComponent(thumbnailImage)
       teaser.addStyleName("image-teaser")
       container.addComponent(teaser)
 
       thumbnailImage.setSizeUndefined
       thumbnailImage.click {
-        case Left(_) => println("image: " + image.name + " left clicked")
-        case Right(_) => println("image: " + image.name + " right clicked")
-        case Middle(_) => println("image: " + image.name + " middle clicked")
+        case Left(_) => {
+          println("image: " + image.name + " left clicked")
+        }
+        case Right(_) => {
+          println("image: " + image.name + " right clicked")
+        }
+        case Middle(_) => {
+          println("image: " + image.name + " middle clicked")
+        }
       }
     }
   }
 
-  def createImage(imageFile: File) = new Image with FileBlob with Name {
+  def createImage(imageFile: File) = {
+    new Image with FileBlob with Name {
 
-    self =>
+      self =>
 
-    def file = imageFile
+      def file = imageFile
 
-    def name = imageFile.getName
+      def name = imageFile.getName
 
-    def thumbnail = new {
+      def thumbnail = {
+        new {
 
-      def download: DownloadStream = {
-        def create(in: InputStream, out: OutputStream): Unit = {
-          println("render thumbnail")
-          val width, height = 150
-          val size = Geometry(width, height)
-          convert.define(jpegSize(Geometry(width * 4, height * 4)))
-            .apply(image(in).buffered)
-            .autoOrient
-            .thumbnail(Geometry(width * 2 * height * 2).area)
-            .borderColor(Color("snow"))
-            .border(Geometry(5, 5))
-            .background(Color("black"))
-            .polaroid(0)
-            .resize(Geometry(50.0))
-            .background(Color.transparent)
-            .gravity(Gravity.South)
-            .extent(Geometry(200, 200))
-            .writeAs("png").to(out)
+          def download: DownloadStream = {
+            def create(in: InputStream, out: OutputStream): Unit = {
+              println("render thumbnail")
+              val width = 200
+              val height = 150
+              val size = Geometry(width, height)
+              convert.define(jpegSize(Geometry(width * 4, height * 4)))
+              .apply(image(in).buffered)
+              .autoOrient
+              .thumbnail(Geometry(width * 2 * height * 2).area)
+              .borderColor(Color("snow"))
+              .border(Geometry(5, 5))
+              .background(Color("black"))
+              .polaroid(0)
+              .resize(Geometry(width, height))
+              /*
+          .background(Color.transparent)
+          .gravity(Gravity.South)
+          .extent(Geometry(200, 200))
+          */
+              .writeAs("png").to(out)
+            }
+
+            println("get stream for " + name)
+            val out = new ByteArrayOutputStream
+            ResourceCache.cached(self, "thumbnail") {
+                cachedOut => self.read(create(_, cachedOut))
+            } write out
+
+            new DownloadStream(new ByteArrayInputStream(out.toByteArray), "image/png", name)
+          }
+
+          def resource = {
+            new ExternalResource("/image/" + file.relativeTo(albumRoot) + "-thumbnail.png",
+                                  "image/png"); //source, file.getName + "-thumbnail.png", application)
+          }
+
         }
-
-        println("get stream for " + name)
-        val out = new ByteArrayOutputStream
-        ResourceCache.cached(self, "thumbnail") {
-          cachedOut => self.read(create(_, cachedOut))
-        } write out
-
-        new DownloadStream(new ByteArrayInputStream(out.toByteArray), "image/png", name)
       }
 
-      def resource = {
-        new ExternalResource("/image/" + file.relativeTo(albumRoot) + "-thumbnail.png", "image/png"); //source, file.getName + "-thumbnail.png", application)
+      def getStream = {
+        read {
+            input => {
+            val out = new ByteArrayOutputStream
+            IOUtils.copy(input, out)
+            new ByteArrayInputStream(out.toByteArray)
+          }
+        }.getOrElse(new ByteArrayInputStream(new Array[Byte](0)))
       }
-
     }
-
-    def getStream = read {
-      input =>
-        val out = new ByteArrayOutputStream
-        IOUtils.copy(input, out)
-        new ByteArrayInputStream(out.toByteArray)
-    }.getOrElse(new ByteArrayInputStream(new Array[Byte](0)))
   }
 }

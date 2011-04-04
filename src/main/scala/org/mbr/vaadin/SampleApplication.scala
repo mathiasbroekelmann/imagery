@@ -109,12 +109,11 @@ class SampleApplication extends VaadinApplication {
     imagesPanel.removeAllComponents
     for(image <- images.take(20)) {
       val teaser = new CssLayout
-      val thumbnailImage = new Embedded(null, image.thumbnail.resource)
+      val thumbnailImage = new Embedded(image.name, image.thumbnail.resource)
       teaser.addComponent(thumbnailImage)
       teaser.addStyleName("image-teaser")
       imagesPanel.addComponent(teaser)
 
-      thumbnailImage.setSizeUndefined
       thumbnailImage.click {
         case Left(_) => println("image: " + image.name + " left clicked")
         case Right(_) => println("image: " + image.name + " right clicked")
@@ -136,7 +135,7 @@ class SampleApplication extends VaadinApplication {
       def download: DownloadStream = {
         def create(in: InputStream, out: OutputStream): Unit = {
           println("render thumbnail")
-          val width, height = 150
+          val width, height = 200
           val size = Geometry(width, height)
           convert.define(jpegSize(Geometry(width * 4, height * 4)))
             .apply(image(in).buffered)
@@ -146,10 +145,7 @@ class SampleApplication extends VaadinApplication {
             .border(Geometry(5, 5))
             .background(Color("black"))
             .polaroid(0)
-            .resize(Geometry(50.0))
-            .background(Color.transparent)
-            .gravity(Gravity.South)
-            .extent(Geometry(200, 200))
+            .resize(Geometry(width, height))
             .writeAs("png").to(out)
         }
 
@@ -163,7 +159,7 @@ class SampleApplication extends VaadinApplication {
       }
 
       def resource = {
-        new ExternalResource("/image/" + file.relativeTo(albumRoot) + "-thumbnail.png", "image/png"); //source, file.getName + "-thumbnail.png", application)
+        new ExternalResource("/image/" + file.relativeTo(albumRoot) + "-thumbnail.png", "image/png");
       }
 
     }
