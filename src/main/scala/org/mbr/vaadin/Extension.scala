@@ -49,8 +49,6 @@ trait ActivatedExtension extends Disposable {
 
 trait ExtensionContext {
 
-  type Extension <: AnyRef
-
   /**
    * define a function which is applied when a matching extension point is registered in the application
    */
@@ -59,15 +57,10 @@ trait ExtensionContext {
   /**
    * registers a new extension point.
    */
-  def register[A <: Extension](extensionPoint: A): RegisteredExtensionPoint[A]
+  def register[A <: AnyRef](extensionPoint: A): RegisteredExtensionPoint[A]
 
 
   def activateWith[A](f: A => Activation)(implicit manifest: ClassManifest[A]): Disposable
-
-  /**
-   * Applies the function to all matching extension points and return the results.
-   */
-  def map[A](pf: PartialFunction[Extension, A]): Iterable[A]
 }
 
 /**
@@ -111,6 +104,8 @@ trait ExtensionPoint extends Disposable {
 }
 
 class DefaultExtensionContext extends ExtensionContext {
+
+  type Extension = AnyRef
 
   type ExtensionPoint = AnyRef
 
@@ -180,15 +175,6 @@ class DefaultExtensionContext extends ExtensionContext {
           pf(extension)
         }
       }
-    }
-  }
-
-  def map[A](pf: PartialFunction[ExtensionPoint, A]): Iterable[A] = {
-    for {
-      extension <- extensionPoints.toStream
-      if pf.isDefinedAt(extension)
-    } yield {
-      pf(extension)
     }
   }
 }
