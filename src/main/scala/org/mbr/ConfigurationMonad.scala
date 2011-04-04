@@ -77,15 +77,21 @@ object Extension {
    */
   def firstOf[A](implicit manifest: ClassManifest[A]): Extension[A] = {
     collectFirst {
-      case x if manifest.erasure.isInstance(x) => {
-        x.asInstanceOf[A]
-      }
+      case x if manifest.erasure.isInstance(x) => x.asInstanceOf[A]
     }
   }
 
   def collect[A](pf: PartialFunction[AnyRef, A]): Extensions[A] = {
     new Extensions[A] {
       def apply(context: ExtensionContext) = context.collect(pf)
+    }
+  }
+
+  def collectOf[A](implicit manifest: ClassManifest[A]): Extensions[A] = {
+    new Extensions[A] {
+      def apply(context: ExtensionContext) = context.collect{
+        case x if manifest.erasure.isInstance(x) => x.asInstanceOf[A]
+      }
     }
   }
 }
@@ -101,8 +107,8 @@ trait Extension[A] {
 
   def map[B](f: A => B): Extension[B] = {
     new Extension[B] {
-      def apply(c: ExtensionContext) = {
-        for (some <- self.apply(c)) yield {
+      def apply(context: ExtensionContext) = {
+        for (some <- self.apply(context)) yield {
           f(some)
         }
       }
@@ -111,8 +117,16 @@ trait Extension[A] {
 
   def flatMap[B](f: A => Extension[B]): Extension[B] = {
     new Extension[B] {
-      def apply(c: ExtensionContext) = {
-        self.apply(c).flatMap(some => f(some).apply(c))
+      def apply(context: ExtensionContext) = {
+        self.apply(context).flatMap(some => f(some).apply(context))
+      }
+    }
+  }
+
+  def withFilter(f: A => Boolean): Extension[A] = {
+    new Extension[A] {
+      def apply(context: ExtensionContext) = {
+        self.apply(context).filter(f)
       }
     }
   }
@@ -129,8 +143,8 @@ trait Extensions[A] {
 
   def map[B](f: A => B): Extensions[B] = {
     new Extensions[B] {
-      def apply(c: ExtensionContext) = {
-        for (some <- self.apply(c)) yield {
+      def apply(context: ExtensionContext) = {
+        for (some <- self.apply(context)) yield {
           f(some)
         }
       }
@@ -139,8 +153,16 @@ trait Extensions[A] {
 
   def flatMap[B](f: A => Extensions[B]): Extensions[B] = {
     new Extensions[B] {
-      def apply(c: ExtensionContext) = {
-        self.apply(c).flatMap(some => f(some).apply(c))
+      def apply(context: ExtensionContext) = {
+        self.apply(context).flatMap(some => f(some).apply(context))
+      }
+    }
+  }
+
+  def withFilter(f: A => Boolean): Extensions[A] = {
+    new Extensions[A] {
+      def apply(context: ExtensionContext) = {
+        self.apply(context).filter(f)
       }
     }
   }
@@ -175,40 +197,54 @@ trait ExtensionRegistry {
   def register(extension: AnyRef): ExtensionRegistry
 
   /**
-   * 
+   *
    */
   def build: ExtensionContext
 }
 
 import Extension._
 
-class SomeExtensionReaderTest {
+class SomeExtensionTest {
 
-  def whatever = {
+  /**
+   * depend on some tree
+   */
+  val tree: Extension[Tree] = collectFirst {case tree: Tree => tree}
+  val apple: Extension[Apple] = firstOf[Apple]
 
-    val tree: Extension[Tree] = collectFirst {case tree: Tree => tree}
-    val apple: Extension[Apple] = firstOf[Apple]
+  val user = collectFirst {case user: User => user}
 
-    val user = collectFirst {case user: User => user}
+  /**
+   * collect all beans of some kind
+   */
+  val trees = collect {case tree: Tree => tree}
+  val users : Extensions[User] = collectOf[User]
 
-    val trees: Extensions[Tree] = collect {case tree: Tree => tree}
+  /**
+   * define a bean with dependencies
+   */
+  val beanWithDependencies: Extension[BeanWithDependencies] = for {
+    t <- tree
+    if true
+    a <- apple
+    u <- firstOf[User]
+  } yield {
+    BeanWithDependencies(t, a, u)
+  }
 
-    val bean: Extension[BeanWithDependencies] = for {
-      t <- tree
-      a <- apple
-      u <- user
-    } yield {
-      BeanWithDependencies(t, a, u)
-    }
+  def prepare(registry: ExtensionRegistry): ExtensionRegistry = {
+    registry.register(beanWithDependencies)
+  }
 
-    val context: ExtensionContext = null
-    context.register(bean)
+  def start(context: ExtensionContext) = {
     val contextTrees: Iterable[Tree] = trees.apply(context)
-    val maybeBean: Option[BeanWithDependencies] = bean.apply(context)
-    val treeOption: Option[Tree] = for (b <- bean.apply(context)) yield {
-      b.tree
+    val bean = beanWithDependencies.apply(context)
+    for (someBean <- bean) {
+      doSomethingWith(someBean)
     }
   }
+
+  def doSomethingWith(bean: BeanWithDependencies) = {}
 
 }
 
